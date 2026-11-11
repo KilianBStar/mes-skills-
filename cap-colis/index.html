@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cap Colis</title>
+<meta name="description" content="Planificateur de tournée pour livreur de colis : ajoutez vos adresses, optimisez l'ordre de passage, livrez arrêt par arrêt.">
+<meta name="theme-color" content="#16202E">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Cap Colis</div>
+    <div class="topbar-stats" id="topStats" aria-live="polite"></div>
+  </header>
+
+  <div id="map" class="map" role="region" aria-label="Carte de la tournée"></div>
+
+  <section class="panel">
+    <nav class="tabs" role="tablist">
+      <button role="tab" id="tab-plan" class="tab" aria-selected="true" data-view="plan">Préparer</button>
+      <button role="tab" id="tab-run" class="tab" aria-selected="false" data-view="run">Tournée</button>
+      <button role="tab" id="tab-settings" class="tab" aria-selected="false" data-view="settings">Réglages</button>
+    </nav>
+
+    <!-- PRÉPARER -->
+    <div class="view" id="view-plan" role="tabpanel" aria-labelledby="tab-plan">
+      <div class="field">
+        <label class="label" for="startInput">Départ</label>
+        <div class="search">
+          <input id="startInput" type="search" autocomplete="off" placeholder="Adresse du dépôt ou de départ">
+          <button class="icon-btn" id="startGps" type="button" title="Utiliser ma position" aria-label="Utiliser ma position">◎</button>
+          <ul class="suggest" id="startSuggest" role="listbox" hidden></ul>
+        </div>
+        <div class="chosen" id="startChosen"></div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="stopInput">Ajouter un arrêt</label>
+        <div class="search">
+          <input id="stopInput" type="search" autocomplete="off" placeholder="Tapez une adresse…">
+          <ul class="suggest" id="stopSuggest" role="listbox" hidden></ul>
+        </div>
+        <div class="row-actions">
+          <button class="btn ghost" id="bulkOpen" type="button">Coller une liste d'adresses</button>
+          <span class="hint">ou touchez la carte</span>
+        </div>
+      </div>
+
+      <div class="list-head">
+        <h2 id="stopsTitle">Arrêts</h2>
+        <button class="btn link danger" id="clearAll" type="button">Tout effacer</button>
+      </div>
+      <ol class="stops" id="stopList"></ol>
+      <p class="empty" id="stopsEmpty">Aucun arrêt pour l'instant. Ajoutez des adresses, puis lancez l'optimisation.</p>
+
+      <div class="sticky-cta">
+        <button class="btn primary big" id="optimizeBtn" type="button">Optimiser la tournée</button>
+        <div class="route-summary" id="routeSummary"></div>
+      </div>
+    </div>
+
+    <!-- TOURNÉE -->
+    <div class="view" id="view-run" role="tabpanel" aria-labelledby="tab-run" hidden>
+      <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
+      <div class="progress-text" id="progressText"></div>
+      <div id="currentCard"></div>
+      <h2 class="sub">Ordre de passage</h2>
+      <ol class="run-list" id="runList"></ol>
+      <div class="row-actions end">
+        <button class="btn ghost" id="reoptHere" type="button">Réoptimiser depuis ma position</button>
+        <button class="btn ghost" id="exportCsv" type="button">Exporter le bilan (CSV)</button>
+      </div>
+    </div>
+
+    <!-- RÉGLAGES -->
+    <div class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+      <div class="grid2">
+        <div class="field">
+          <label class="label" for="setStartTime">Heure de départ</label>
+          <input id="setStartTime" type="time" value="08:00">
+        </div>
+        <div class="field">
+          <label class="label" for="setService">Temps par arrêt (min)</label>
+          <input id="setService" type="number" min="0" max="60" step="0.5" value="2">
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Fin de tournée</span>
+        <div class="seg" role="radiogroup" aria-label="Fin de tournée">
+          <label><input type="radio" name="endMode" value="start" checked> Retour au départ</label>
+          <label><input type="radio" name="endMode" value="none"> Au dernier arrêt</label>
+          <label><input type="radio" name="endMode" value="address"> Autre adresse</label>
+        </div>
+        <div class="search" id="endWrap" hidden>
+          <input id="endInput" type="search" autocomplete="off" placeholder="Adresse d'arrivée">
+          <ul class="suggest" id="endSuggest" role="listbox" hidden></ul>
+        </div>
+        <div class="chosen" id="endChosen"></div>
+      </div>
+      <div class="field">
+        <span class="label">Application de navigation</span>
+        <div class="seg" role="radiogroup" aria-label="Application de navigation">
+          <label><input type="radio" name="navApp" value="google" checked> Google Maps</label>
+          <label><input type="radio" name="navApp" value="waze"> Waze</label>
+          <label><input type="radio" name="navApp" value="apple"> Plans (Apple)</label>
+        </div>
+      </div>
+      <div class="field">
+        <span class="label">Recherche d'adresses</span>
+        <div class="seg" role="radiogroup" aria-label="Recherche d'adresses">
+          <label><input type="radio" name="region" value="fr" checked> France (Base Adresse Nationale)</label>
+          <label><input type="radio" name="region" value="world"> International (OpenStreetMap)</label>
+        </div>
+      </div>
+      <div class="field">
+        <label class="label" for="setOsrm">Serveur de calcul d'itinéraire (OSRM)</label>
+        <input id="setOsrm" type="url" value="https://router.project-osrm.org">
+        <p class="hint">Le serveur public de démonstration suffit pour tester. Pour un usage quotidien, utilisez votre propre serveur OSRM. Sans serveur, l'app estime les temps à vol d'oiseau.</p>
+      </div>
+      <button class="btn ghost" id="loadDemo" type="button">Charger une tournée d'exemple (Lyon)</button>
+    </div>
+  </section>
+</div>
+
+<!-- Modale : édition d'arrêt -->
+<dialog id="stopDialog" class="dialog">
+  <form method="dialog" id="stopForm">
+    <h2 id="stopDialogTitle">Arrêt</h2>
+    <p class="dialog-addr" id="stopDialogAddr"></p>
+    <div class="field">
+      <label class="label" for="fNote">Note pour la livraison</label>
+      <textarea id="fNote" rows="2" placeholder="Code portail, étage, laisser chez le voisin…"></textarea>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label class="label" for="fPackages">Colis</label>
+        <input id="fPackages" type="number" min="1" max="99" value="1">
+      </div>
+      <div class="field">
+        <label class="label" for="fService">Durée d'arrêt (min)</label>
+        <input id="fService" type="number" min="0" max="120" step="0.5" placeholder="par défaut">
+      </div>
+    </div>
+    <div class="field">
+      <span class="label">Priorité</span>
+      <div class="seg" role="radiogroup" aria-label="Priorité">
+        <label><input type="radio" name="fGroup" value="0"> En premier</label>
+        <label><input type="radio" name="fGroup" value="1" checked> Normal</label>
+        <label><input type="radio" name="fGroup" value="2"> En dernier</label>
+      </div>
+    </div>
+    <div class="grid2">
+      <div class="field">
+        <label class="label" for="fAfter">Pas avant</label>
+        <input id="fAfter" type="time">
+      </div>
+      <div class="field">
+        <label class="label" for="fBefore">Au plus tard</label>
+        <input id="fBefore" type="time">
+      </div>
+    </div>
+    <div class="dialog-actions">
+      <button class="btn link danger" value="delete" id="fDelete">Supprimer l'arrêt</button>
+      <span class="spacer"></span>
+      <button class="btn ghost" value="cancel">Annuler</button>
+      <button class="btn primary" value="save" id="fSave">Enregistrer</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Modale : import en masse -->
+<dialog id="bulkDialog" class="dialog">
+  <form method="dialog" id="bulkForm">
+    <h2>Coller une liste d'adresses</h2>
+    <p class="hint">Une adresse par ligne. Vous pouvez ajouter une note après un point-virgule : <code>12 rue Mercière, Lyon ; code 4512</code></p>
+    <textarea id="bulkText" rows="8" placeholder="12 rue Mercière, 69002 Lyon&#10;3 place Bellecour, 69002 Lyon"></textarea>
+    <div class="bulk-status" id="bulkStatus" aria-live="polite"></div>
+    <div class="dialog-actions">
+      <span class="spacer"></span>
+      <button class="btn ghost" value="cancel">Fermer</button>
+      <button class="btn primary" type="button" id="bulkGo">Ajouter les adresses</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- Modale : échec de livraison -->
+<dialog id="failDialog" class="dialog">
+  <form method="dialog">
+    <h2>Livraison impossible</h2>
+    <div class="chips" id="failReasons">
+      <button class="chip" value="Destinataire absent">Destinataire absent</button>
+      <button class="chip" value="Adresse introuvable">Adresse introuvable</button>
+      <button class="chip" value="Accès impossible">Accès impossible</button>
+      <button class="chip" value="Colis refusé">Colis refusé</button>
+      <button class="chip" value="Colis endommagé">Colis endommagé</button>
+      <button class="chip" value="Autre">Autre</button>
+    </div>
+    <div class="dialog-actions">
+      <span class="spacer"></span>
+      <button class="btn ghost" value="cancel">Annuler</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" hidden><span id="toastText"></span><button class="btn link" id="toastUndo" type="button" hidden>Annuler</button></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="optimizer.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

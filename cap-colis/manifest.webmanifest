@@ -1,0 +1,15 @@
+{
+  "name": "Cap Colis",
+  "short_name": "Cap Colis",
+  "description": "Planificateur et optimiseur de tournée pour livreur de colis.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#16202E",
+  "theme_color": "#16202E",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}

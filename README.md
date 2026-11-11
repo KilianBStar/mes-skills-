@@ -4,3 +4,7 @@ Les 314 skills d'[Everything Claude Code](https://github.com/affaan-m/ECC) (comm
 Chaque session Claude Code ouverte sur ce dépôt les charge automatiquement.
 
 Licence MIT : voir LICENSE-ECC.
+
+## Applications
+
+- [Cap Colis](cap-colis/) : optimiseur de tournée pour livreur de colis (web, installable sur téléphone).
