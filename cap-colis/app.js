@@ -533,7 +533,19 @@
       document.body.appendChild(a); a.click(); a.remove();
     } else {
       window.location.href = url; // ouvre l'application (Waze, Google Maps)
+      // Si l'app n'est pas installée, l'iPhone reste sur Cap Colis : on passe par le lien web.
+      const web = state.settings.navApp === 'google'
+        ? `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`
+        : `https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
+      setTimeout(() => { if (!document.hidden) window.location.href = web; }, 1800);
     }
+  }
+  /** Arrêt à livrer juste après celui-ci dans l'ordre de passage. */
+  function nextAfter(id) {
+    const r = state.route;
+    if (!r) return null;
+    for (const oid of r.order.slice(r.order.indexOf(id) + 1)) { const s = stopById(oid); if (s && s.status === 'pending') return s; }
+    return null;
   }
   function navName() {
     return { waze: 'Waze', google: 'Google Maps', apple: 'Plans' }[state.settings.navApp] || 'le GPS';
@@ -560,6 +572,8 @@
     renderAll();
     focusCurrent();
     toast('Arrêt reporté en fin de tournée.');
+    const next = currentStop();
+    if (state.settings.autoNav && next && next.id !== id) openNav(next);
   }
 
   // ---------- Rendu ----------
@@ -641,6 +655,8 @@
     if (cur) {
       const n = orderNumber(cur.id);
       const eta = r.etas[cur.id];
+      const nx = nextAfter(cur.id);
+      const nextHint = state.settings.autoNav && nx ? `<small>puis ${esc(navName())} vers le n° ${orderNumber(nx.id)}</small>` : '';
       card.innerHTML = `<div class="card">
         <div class="card-top"><span class="num">${n}</span>
           <div class="card-text"><div class="card-addr">${esc(cur.label)}</div>
@@ -649,7 +665,7 @@
         ${cur.check ? '<div class="card-note">Adresse lue sur photo : vérifiez-la sur place.</div>' : ''}
         <div class="card-actions">
           <button class="btn primary nav" type="button" data-act="nav" data-id="${cur.id}">Y aller avec ${navName()}</button>
-          <button class="btn ok" type="button" data-act="done" data-id="${cur.id}">Livré</button>
+          <button class="btn ok" type="button" data-act="done" data-id="${cur.id}">Livré${nextHint}</button>
           <button class="btn bad" type="button" data-act="fail" data-id="${cur.id}">Échec</button>
           <button class="btn ghost wide" type="button" data-act="skip" data-id="${cur.id}">Passer pour l'instant</button>
         </div></div>${banner}`;

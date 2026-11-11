@@ -55,6 +55,7 @@ jobs:
           fi
       - name: Compiler l'application (non signée)
         run: |
+          set -eo pipefail
           cd ios/App
           if [ -d App.xcworkspace ]; then TARGET="-workspace App.xcworkspace"; else TARGET="-project App.xcodeproj"; fi
           xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
