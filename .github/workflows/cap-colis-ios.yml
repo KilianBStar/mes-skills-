@@ -1,0 +1,70 @@
+name: Cap Colis iOS
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'cap-colis/**'
+      - '.github/workflows/cap-colis-ios.yml'
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cap-colis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm test
+
+  ipa:
+    needs: tests
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: cap-colis
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Choisir la version de Xcode la plus récente
+        run: |
+          XC=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Xcode : $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
+      - run: npm install --no-audit --no-fund
+      - run: npm run build:web
+      - run: npx cap add ios
+      - run: npx cap sync ios
+      - name: Icône et autorisations iOS
+        run: |
+          P=ios/App/App/Info.plist
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Cap Colis photographie le manifeste et les étiquettes pour lire les adresses.'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Cap Colis lit les adresses sur les photos que vous choisissez.'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Cap Colis utilise votre position pour partir d’ici et recalculer la tournée.'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes array" -c "Add :LSApplicationQueriesSchemes:0 string waze" -c "Add :LSApplicationQueriesSchemes:1 string comgooglemaps" "$P"
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Cap Colis'" "$P" || true
+          ICON_DIR=ios/App/App/Assets.xcassets/AppIcon.appiconset
+          if [ -d "$ICON_DIR" ]; then
+            for f in "$ICON_DIR"/*.png; do sips -z 1024 1024 icon-1024.png --out "$f" >/dev/null; done
+          fi
+      - name: Compiler l'application (non signée)
+        run: |
+          cd ios/App
+          if [ -d App.xcworkspace ]; then TARGET="-workspace App.xcworkspace"; else TARGET="-project App.xcodeproj"; fi
+          xcodebuild $TARGET -scheme App -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -30
+          APP=$(find build/Build/Products -name 'App.app' -maxdepth 2 | head -1)
+          mkdir -p Payload && cp -R "$APP" Payload/
+          zip -qry ../../CapColis-non-signe.ipa Payload
+          ls -la ../../CapColis-non-signe.ipa
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CapColis-iOS-non-signe
+          path: cap-colis/CapColis-non-signe.ipa
+          retention-days: 30

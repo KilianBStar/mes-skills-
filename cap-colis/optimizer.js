@@ -1,5 +1,5 @@
 /*
- * Cap Colis — moteur d'optimisation de tournée.
+ * Cap Colis : moteur d'optimisation de tournée.
  * Pur JavaScript, sans dépendance : fonctionne dans le navigateur (window.Optimizer)
  * et dans Node (module.exports) pour les tests.
  *

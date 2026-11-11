@@ -1,9 +1,12 @@
-// Service worker : met l'application en cache pour l'ouvrir même sans réseau.
-// Les appels aux services d'adresses et d'itinéraire passent toujours par le réseau.
-const CACHE = 'cap-colis-v1';
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'optimizer.js', 'manifest.webmanifest', 'icon.svg',
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css'];
+// Service worker : garde l'application en cache pour l'ouvrir sans réseau.
+// Les adresses, itinéraires et fonds de carte passent toujours par le réseau.
+const CACHE = 'cap-colis-v2';
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'optimizer.js', 'scan.js', 'manifest.webmanifest',
+  'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png',
+  'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js',
+  'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css'];
+// Bibliothèques gardées après leur premier usage (lecture des photos hors ligne ensuite).
+const LIB_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -12,15 +15,20 @@ self.addEventListener('activate', (e) => {
   e.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim()));
 });
 self.addEventListener('fetch', (e) => {
+  if (e.request.method !== 'GET') return;
   const url = new URL(e.request.url);
-  const isShell = url.origin === location.origin || url.hostname === 'cdnjs.cloudflare.com';
-  if (e.request.method !== 'GET' || !isShell) return;
-  // Réseau d'abord (pour recevoir les mises à jour), cache en secours hors ligne.
-  e.respondWith(
-    fetch(e.request).then((res) => {
+  if (url.origin === location.origin) {
+    // Réseau d'abord pour recevoir les mises à jour, cache en secours.
+    e.respondWith(fetch(e.request).then((res) => {
       const copy = res.clone();
       caches.open(CACHE).then((c) => c.put(e.request, copy));
       return res;
-    }).catch(() => caches.match(e.request))
-  );
+    }).catch(() => caches.match(e.request, { ignoreSearch: true })));
+  } else if (LIB_HOSTS.includes(url.hostname)) {
+    // Versions figées : le cache suffit.
+    e.respondWith(caches.match(e.request).then((hit) => hit || fetch(e.request).then((res) => {
+      if (res.ok) { const copy = res.clone(); caches.open(CACHE).then((c) => c.put(e.request, copy)); }
+      return res;
+    })));
+  }
 });

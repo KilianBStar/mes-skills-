@@ -1,43 +1,56 @@
 # Cap Colis
 
-Application web (installable sur téléphone) pour **optimiser une tournée de livraison de colis**, dans l'esprit des planificateurs de tournée pour livreurs indépendants.
+Application de tournée pour livreur de colis, pensée pour l'iPhone (testée au format iPhone 17 Pro Max). Vous scannez le manifeste, elle calcule l'ordre de passage et l'heure de fin, puis Waze vous guide d'un arrêt à l'autre.
 
 ## Ce qu'elle fait
 
-**Préparer**
-- Point de départ par adresse ou par GPS, fin de tournée au choix : retour au départ, au dernier arrêt ou à une autre adresse.
-- Ajout d'arrêts par recherche d'adresse avec suggestions, en touchant la carte, ou en **collant une liste** (une adresse par ligne, note après `;`).
-- Par arrêt : note (code portail, étage…), nombre de colis, durée d'arrêt, priorité **en premier / en dernier**, créneau **pas avant / au plus tard**.
+**Scanner la tournée**
+- Photographiez chaque page du manifeste, ou chaque étiquette de colis : 1 photo ou 20, peu importe. Les photos se lisent l'une après l'autre pendant que vous continuez à photographier.
+- L'app redresse les photos penchées, lit les tableaux ligne par ligne et récupère l'adresse, le nom du destinataire, le téléphone et le complément (bâtiment, étage).
+- Vous relisez la liste, corrigez une adresse d'un doigt, puis touchez « Ajouter ». Les adresses douteuses portent la mention « À vérifier ».
+- Autre méthode : dans l'appareil photo de l'iPhone, Texte en direct, Tout sélectionner, Copier, puis « Coller du texte » dans l'app.
 
 **Optimiser**
-- Temps de trajet réels par la route (matrice OSRM, jusqu'à 100 points), sinon estimation à vol d'oiseau.
-- Moteur local (`optimizer.js`) : construction gloutonne + 2-opt + Or-opt + recherche locale itérée. Il respecte les priorités, attend l'ouverture des créneaux et pénalise les retards.
-- Heures d'arrivée prévues, durée, kilomètres, heure de fin. Ordre modifiable à la main (▲▼) avec recalcul des heures.
+- 1 minute par arrêt par défaut (modifiable, et réglable arrêt par arrêt).
+- Temps de trajet réels par la route (OSRM), priorités « en premier » / « en dernier », créneaux horaires.
+- Heure de fin affichée en grand et recalculée en direct pendant la tournée, à partir de l'heure qu'il est et des arrêts restants.
 
 **Livrer**
-- Mode tournée : carte de l'arrêt en cours, bouton **Naviguer** (Google Maps, Waze ou Plans), **Livré**, **Échec** avec motif, **Passer** (reporté en fin de tournée), annulation de la dernière action.
-- Réoptimisation depuis la position actuelle en cours de route.
-- Export du bilan en CSV (compatible Excel).
+- Bouton « Y aller avec Waze » : Waze s'ouvre sur l'arrêt, avec ses alertes radars et trafic.
+- « Livré » ouvre directement Waze vers l'arrêt suivant (désactivable dans Réglages).
+- Échec avec motif, report en fin de tournée, annulation, réoptimisation depuis votre position.
+- Carte 3D (bâtiments en relief, caméra orientée vers l'arrêt suivant), bascule 2D en un geste.
+- Bilan CSV partagé par la feuille de partage iOS (Fichiers, Mail, WhatsApp).
 
-Les données restent dans le navigateur du téléphone (localStorage). Aucun compte, aucun serveur à soi.
+Les données restent sur le téléphone. Pas de compte.
+
+## Installer sur l'iPhone
+
+### Option 1 : l'app web (gratuite, immédiate)
+1. Mettez le dossier `cap-colis/` en ligne en HTTPS. Le dépôt est privé : GitHub Pages ne marche qu'avec un dépôt public ou un compte GitHub Pro. Sinon, Netlify Drop ou Cloudflare Pages acceptent le dossier tel quel.
+2. Ouvrez l'adresse dans **Safari** sur l'iPhone.
+3. Bouton Partager, puis **Sur l'écran d'accueil**.
+
+L'icône Cap Colis arrive sur l'écran d'accueil et s'ouvre en plein écran, sans barre Safari. L'app fonctionne ensuite hors ligne, sauf la recherche d'adresses, les itinéraires et le fond de carte.
+
+### Option 2 : l'app native (fichier .ipa)
+À chaque modification, GitHub Actions compile l'app iOS sur un Mac (workflow `Cap Colis iOS`) et publie `CapColis-non-signe.ipa` dans les artefacts du run.
+
+Apple interdit d'installer une app non signée. Deux façons de la signer :
+- **Gratuit** : Sideloadly ou AltStore sur un ordinateur, avec votre identifiant Apple. Apple limite cette signature à 7 jours ; il faut la renouveler ensuite.
+- **99 €/an** : un compte Apple Developer, puis TestFlight. L'app s'installe et se met à jour comme une app de l'App Store.
 
 ## Services utilisés (gratuits, sans clé)
-- Adresses France : Géoplateforme IGN (`data.geopf.fr/geocodage`, Base Adresse Nationale).
-- Adresses hors France / secours : Photon (OpenStreetMap).
-- Itinéraires : serveur OSRM public de démonstration, modifiable dans Réglages. **Pour un usage professionnel quotidien, hébergez votre propre OSRM** (le serveur de démo est limité et sans garantie).
-- Fond de carte : OpenStreetMap.
+- Adresses : Géoplateforme IGN (Base Adresse Nationale), Photon (OpenStreetMap) en secours.
+- Itinéraires : serveur OSRM public de démonstration. Pour un usage pro quotidien, hébergez votre propre OSRM et indiquez son adresse dans Réglages.
+- Carte 3D : MapLibre et OpenFreeMap.
+- Lecture des photos : Tesseract.js, directement sur le téléphone. Aucune photo ne quitte l'iPhone.
 
-## Lancer
+## Développer
 
 ```bash
 cd cap-colis
-python3 -m http.server 8080   # puis ouvrir http://localhost:8080
-```
-
-Pour l'utiliser sur téléphone : publiez le dossier en HTTPS (GitHub Pages, Netlify…), ouvrez-le dans le navigateur puis « Ajouter à l'écran d'accueil ».
-
-## Tests
-
-```bash
-node --test cap-colis/tests/optimizer.test.js
+npm test                      # optimiseur + lecture d'adresses
+python3 -m http.server 8080   # puis http://localhost:8080
+npm install && npm run ios:sync && npm run ios:open   # projet Xcode (Mac)
 ```

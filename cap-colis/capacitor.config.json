@@ -1,0 +1,9 @@
+{
+  "appId": "fr.capcolis.app",
+  "appName": "Cap Colis",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#16202E"
+  }
+}

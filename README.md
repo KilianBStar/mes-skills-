@@ -7,4 +7,4 @@ Licence MIT : voir LICENSE-ECC.
 
 ## Applications
 
-- [Cap Colis](cap-colis/) : optimiseur de tournée pour livreur de colis (web, installable sur téléphone).
+- [Cap Colis](cap-colis/) : tournée de livreur de colis pour iPhone. Scan du manifeste, optimisation, carte 3D, Waze.
