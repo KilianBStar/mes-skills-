@@ -5,9 +5,9 @@ Application de tournée pour livreur de colis, pensée pour l'iPhone (testée au
 ## Ce qu'elle fait
 
 **Scanner la tournée**
-- Photographiez chaque page du manifeste, ou chaque étiquette de colis : 1 photo ou 20, peu importe. Les photos se lisent l'une après l'autre pendant que vous continuez à photographier.
+- Photographiez chaque page du manifeste, ou chaque étiquette de colis : 1 photo ou 20, peu importe. L'app lit les photos l'une après l'autre pendant que vous continuez à photographier.
 - L'app redresse les photos penchées, lit les tableaux ligne par ligne et récupère l'adresse, le nom du destinataire, le téléphone et le complément (bâtiment, étage).
-- Vous relisez la liste, corrigez une adresse d'un doigt, puis touchez « Ajouter ». Les adresses douteuses portent la mention « À vérifier ».
+- Vous relisez la liste, corrigez une adresse d'un doigt, puis touchez « Ajouter ». L'app marque « À vérifier » les adresses dont elle doute.
 - Autre méthode : dans l'appareil photo de l'iPhone, Texte en direct, Tout sélectionner, Copier, puis « Coller du texte » dans l'app.
 
 **Optimiser**
@@ -17,12 +17,12 @@ Application de tournée pour livreur de colis, pensée pour l'iPhone (testée au
 
 **Livrer**
 - Bouton « Y aller avec Waze » : Waze s'ouvre sur l'arrêt, avec ses alertes radars et trafic.
-- « Livré » ouvre directement Waze vers l'arrêt suivant (désactivable dans Réglages).
+- Quand vous touchez « Livré », Waze s'ouvre sur l'arrêt suivant. Vous pouvez couper ce réglage.
 - Échec avec motif, report en fin de tournée, annulation, réoptimisation depuis votre position.
 - Carte 3D (bâtiments en relief, caméra orientée vers l'arrêt suivant), bascule 2D en un geste.
 - Bilan CSV partagé par la feuille de partage iOS (Fichiers, Mail, WhatsApp).
 
-Les données restent sur le téléphone. Pas de compte.
+Vos données restent sur le téléphone, sans compte à créer.
 
 ## Installer sur l'iPhone
 
@@ -44,7 +44,7 @@ Apple interdit d'installer une app non signée. Deux façons de la signer :
 - Adresses : Géoplateforme IGN (Base Adresse Nationale), Photon (OpenStreetMap) en secours.
 - Itinéraires : serveur OSRM public de démonstration. Pour un usage pro quotidien, hébergez votre propre OSRM et indiquez son adresse dans Réglages.
 - Carte 3D : MapLibre et OpenFreeMap.
-- Lecture des photos : Tesseract.js, directement sur le téléphone. Aucune photo ne quitte l'iPhone.
+- Lecture des photos : Tesseract.js, sur le téléphone. Vos photos restent dans l'iPhone.
 
 ## Développer
 
