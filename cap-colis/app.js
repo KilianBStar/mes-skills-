@@ -7,7 +7,7 @@
   const SETTINGS_VERSION = 4;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'cap',
-    autoNav: true, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: true,
+    autoNav: true, radars: true, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: true,
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
@@ -263,9 +263,9 @@
     buildingLayers = layers.filter((l) => l.type === 'fill-extrusion').map((l) => l.id);
     if (!buildingLayers.length && map.getSource('openmaptiles')) {
       map.addLayer({
-        id: 'cc-buildings-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
+        id: 'cc-buildings-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
         paint: {
-          'fill-extrusion-color': '#cfc6b8',
+          'fill-extrusion-color': window.matchMedia('(prefers-color-scheme: dark)').matches ? '#3a4150' : '#d9d2c6',
           'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
           'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
           'fill-extrusion-opacity': 0.85,
@@ -404,9 +404,11 @@
     const dup = state.stops.some((s) => Math.abs(s.lat - p.lat) < 1e-6 && Math.abs(s.lon - p.lon) < 1e-6);
     const s = newStop(p, extra);
     state.stops.push(s);
+    const pos = state.route ? insertIntoRoute(s) : null;
     if (!extra.silent) {
       renderAll();
-      toast(dup ? 'Ajouté. Attention : cette adresse figure déjà dans la liste.' : `Arrêt ajouté (${state.stops.length})`);
+      toast(dup ? 'Ajouté. Attention : cette adresse figure déjà dans la liste.' : pos ? `Arrêt ajouté en n° ${pos} de la tournée` : `Arrêt ajouté (${state.stops.length})`);
+      if (pos) rebuildMatrix();
     }
     return s;
   }
@@ -821,6 +823,7 @@
     $('setService').value = st.service;
     $('setOsrm').value = st.osrm;
     $('setAutoNav').checked = !!st.autoNav;
+    $('setRadars').checked = st.radars !== false;
     for (const name of ['endMode', 'navApp', 'region']) {
       document.querySelectorAll(`input[name="${name}"]`).forEach((i) => { i.checked = i.value === st[name]; });
     }
@@ -1172,6 +1175,7 @@
     } finally {
       state.found = state.found.filter((f) => !f.added);
       geocodingFound = false;
+      if (state.route && ok) rebuildMatrix();
       renderAll();
       renderScan();
       $('scanBusy').textContent = '';
@@ -1584,7 +1588,8 @@
     try { speechSynthesis.cancel(); } catch (e) { /* pas de voix */ }
     $('app').classList.remove('navigating');
     document.body.classList.remove('navigating');
-    $('navTop').hidden = true; $('navBottom').hidden = true; $('navRecenter').hidden = true;
+    $('navTop').hidden = true; $('navBottom').hidden = true; $('navRecenter').hidden = true; $('navRadar').hidden = true;
+    radarMarkers.forEach((m) => m.remove()); radarMarkers = [];
     navLayer(null);
     if (meMarker) { meMarker.remove(); meMarker = null; }
     if (!silent) { lastFocusId = null; focusCurrent(true); }
@@ -1600,6 +1605,14 @@
     catch (e) { nav.route = straightRoute(pos, nav.stop); }
     nav.fetching = false; nav.seg = 0; nav.off = 0; nav.said = {};
     navLayer(nav.route.coords.map((c) => [c.lon, c.lat]));
+    if (state.settings.radars) {
+      loadRadars(nav.route.coords).then((list) => {
+        radars = list;
+        if (!nav.active || !nav.route) return;
+        nav.route.radars = radarsOnRoute(nav.route);
+        showRadars(list);
+      });
+    }
   }
   async function onNavPos(p) {
     if (!nav.active) return;
@@ -1635,6 +1648,9 @@
       else if (toMan <= 60 && !nav.said[key + 'b']) { nav.said[key + 'b'] = nav.said[key + 'a'] = 1; speak(text); }
     }
     if (toStop < 120 && !nav.said.near) { nav.said.near = 1; speak('Votre arrêt est à 100 mètres'); }
+    const kmh = Math.round(speed * 3.6);
+    $('navSpeed').textContent = p.coords.speed != null ? String(kmh) : '–';
+    if (state.settings.radars) radarAlert(pos, along, kmh);
     // arrivée prévue
     const remain = Math.max(toStop, rt.total - along);
     const secs = rt.total > 0 ? rt.duration * (remain / rt.total) : remain / 8;
@@ -1658,7 +1674,7 @@
     nav.watch = null;
     speak('Vous êtes arrivé');
     if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
-    $('navTop').hidden = true;
+    $('navTop').hidden = true; $('navRadar').hidden = true;
     $('navDriving').hidden = true; $('navArrived').hidden = false;
     const s = nav.stop;
     $('navArrAddr').textContent = s.label;
@@ -1682,6 +1698,156 @@
   $('navFail').addEventListener('click', () => { const s = nav.stop; stopNav(true); failId = s.id; $('failDialog').showModal(); });
   $('navSkip').addEventListener('click', () => { const s = nav.stop; stopNav(true); skip(s.id); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && nav.active && !nav.arrived) keepScreenOn(); });
+
+  // ---------- Tournée dans mon ordre (sans optimisation) ----------
+  /** Recalcule la matrice de temps pour l'ordre actuel (serveur d'itinéraire, sinon estimation), puis les heures. */
+  async function rebuildMatrix(tryServer = true) {
+    const r = state.route;
+    if (!r) return;
+    const end = endPoint();
+    const ids = r.order.filter((id) => stopById(id));
+    const pts = [r.start, ...ids.map(stopById)];
+    if (end) pts.push(end);
+    let mat = null;
+    if (tryServer && pts.length <= 100) { try { mat = await osrmTable(pts); } catch (e) { mat = null; } }
+    if (!mat) mat = Optimizer.estimateMatrix(pts);
+    if (state.route !== r) return; // tournée changée entre-temps
+    const live = r.order.filter((id) => stopById(id));
+    if (live.join() !== ids.join()) return rebuildMatrix(tryServer); // ordre modifié pendant le calcul
+    r.matrix = { ids, durations: mat.durations.map((row) => row.map((v) => Math.round(v))), endIndex: end ? pts.length - 1 : null, startTime: r.startTime };
+    let d = 0, prev = 0;
+    ids.forEach((id, k) => { d += mat.distances[prev][k + 1]; prev = k + 1; });
+    if (end) d += mat.distances[prev][pts.length - 1];
+    r.distance = d;
+    recomputeEtas();
+    renderAll();
+  }
+  async function startInOrder() {
+    const pending = state.stops.filter((s) => s.status === 'pending');
+    if (!state.start) { toast('Indiquez d\'abord votre point de départ.'); $('startInput').focus(); return; }
+    if (!pending.length) { toast('Ajoutez au moins un arrêt.'); return; }
+    const done = state.route ? state.route.order.filter((id) => { const s = stopById(id); return s && s.status !== 'pending'; }) : state.stops.filter((s) => s.status !== 'pending').map((s) => s.id);
+    const end = endPoint();
+    state.route = {
+      order: [...done, ...pending.map((s) => s.id)], etas: {}, startTime: plannedStart(), duration: 0, distance: 0, late: 0, end: 0,
+      source: 'manual', geometry: null, start: { lat: state.start.lat, lon: state.start.lon, label: state.start.label },
+      endPt: end ? { lat: end.lat, lon: end.lon } : null, matrix: null,
+    };
+    lastBoundsKey = ''; lastFocusId = null;
+    renderAll();
+    switchView('run');
+    toast('Tournée lancée dans votre ordre. Calcul des heures…');
+    await rebuildMatrix();
+    toast(`Fin prévue à ${fmtClock(state.route ? state.route.end : 0)}.`);
+  }
+  /**
+   * Nouvelle adresse pendant la tournée : on la place là où elle rallonge le moins le trajet,
+   * parmi les arrêts qui restent (jamais avant l'arrêt vers lequel vous roulez).
+   */
+  function insertIntoRoute(s) {
+    const r = state.route;
+    if (!r || r.order.includes(s.id)) return null;
+    const pend = r.order.filter((id) => { const x = stopById(id); return x && x.status === 'pending'; });
+    const handled = state.stops.filter((x) => x.status !== 'pending' && x.doneAt).sort((a, b) => b.doneAt - a.doneAt)[0];
+    let from = handled || r.start;
+    let candidates = pend;
+    if (nav.active && nav.stop && pend[0] === nav.stop.id) { from = nav.stop; candidates = pend.slice(1); }
+    const end = r.endPt;
+    const d = (a, b) => Optimizer.haversine(a, b);
+    let bestPos = candidates.length, bestCost = Infinity;
+    let prev = from;
+    for (let i = 0; i <= candidates.length; i++) {
+      const next = i < candidates.length ? stopById(candidates[i]) : end;
+      const cost = next ? d(prev, s) + d(s, next) - d(prev, next) : d(prev, s);
+      if (cost < bestCost) { bestCost = cost; bestPos = i; }
+      if (next && i < candidates.length) prev = next;
+    }
+    const beforeId = candidates[bestPos];
+    if (beforeId) r.order.splice(r.order.indexOf(beforeId), 0, s.id);
+    else r.order.push(s.id);
+    r.geometry = null;
+    return orderNumber(s.id);
+  }
+  $('skipOptBtn').addEventListener('click', startInOrder);
+
+  // ---------- Radars (OpenStreetMap) ----------
+  const RADAR_CACHE = 'cap-colis-radars';
+  let radars = [];
+  let radarMarkers = [];
+  const CAM_SVG = '<svg viewBox="0 0 24 24"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10.5 21 8v8l-5-2.5"/></svg>';
+  async function loadRadars(pts) {
+    if (!state.settings.radars) return [];
+    let s = 90, w = 180, n = -90, e = -180;
+    for (const p of pts) { s = Math.min(s, p.lat); n = Math.max(n, p.lat); w = Math.min(w, p.lon); e = Math.max(e, p.lon); }
+    // zone arrondie, gardée 24 h sur le téléphone
+    const r = (v, f) => (f(v * 10) / 10).toFixed(1);
+    s = r(s - 0.05, Math.floor); w = r(w - 0.08, Math.floor); n = r(n + 0.05, Math.ceil); e = r(e + 0.08, Math.ceil);
+    const key = `${s},${w},${n},${e}`;
+    try {
+      const c = JSON.parse(localStorage.getItem(RADAR_CACHE) || '{}');
+      if (c.key === key && Date.now() - c.at < 86400000) return c.list;
+    } catch (e2) { /* cache illisible */ }
+    const q = `[out:json][timeout:20];(node["highway"="speed_camera"](${key});node["enforcement"="maxspeed"](${key}););out body;`;
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 20000);
+    try {
+      const res = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q), headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, signal: ctl.signal });
+      const j = await res.json();
+      const list = (j.elements || []).map((el) => ({ id: el.id, lat: el.lat, lon: el.lon, max: parseInt((el.tags && el.tags.maxspeed) || '', 10) || null }));
+      try { localStorage.setItem(RADAR_CACHE, JSON.stringify({ key, at: Date.now(), list })); } catch (e3) { /* plein */ }
+      return list;
+    } catch (e4) { return []; } finally { clearTimeout(t); }
+  }
+  function showRadars(list) {
+    radarMarkers.forEach((m) => m.remove());
+    radarMarkers = [];
+    if (!map) return;
+    for (const r of list) {
+      const el = document.createElement('div');
+      el.className = 'radar-mk';
+      el.innerHTML = r.max ? String(r.max) : CAM_SVG;
+      el.title = r.max ? `Radar ${r.max} km/h` : 'Radar';
+      radarMarkers.push(new maplibregl.Marker({ element: el }).setLngLat([r.lon, r.lat]).addTo(map));
+    }
+  }
+  /** Radars sur l'itinéraire : position le long du trajet. */
+  function radarsOnRoute(rt) {
+    if (rt.straight) return [];
+    const out = [];
+    for (const r of radars) {
+      let best = { dist: Infinity, along: 0 };
+      for (let i = 0; i < rt.coords.length - 1; i++) {
+        const A = localXY(rt.coords[i], r), B = localXY(rt.coords[i + 1], r);
+        const dx = B.x - A.x, dy = B.y - A.y, len2 = dx * dx + dy * dy || 1e-9;
+        const t = Math.max(0, Math.min(1, -(A.x * dx + A.y * dy) / len2));
+        const dd = Math.hypot(A.x + t * dx, A.y + t * dy);
+        if (dd < best.dist) best = { dist: dd, along: rt.cum[i] + t * (rt.cum[i + 1] - rt.cum[i]) };
+      }
+      if (best.dist < 40) out.push({ ...r, along: best.along });
+    }
+    return out;
+  }
+  function radarAlert(pos, along, speedKmh) {
+    const rt = nav.route;
+    let ahead = null;
+    if (rt && rt.radars) {
+      for (const r of rt.radars) { const dd = r.along - along; if (dd > -15 && dd < 700 && (!ahead || dd < ahead.d)) ahead = { ...r, d: Math.max(0, dd) }; }
+    } else {
+      for (const r of radars) { const dd = Optimizer.haversine(pos, r); if (dd < 300 && (!ahead || dd < ahead.d)) ahead = { ...r, d: dd }; }
+    }
+    const box = $('navRadar');
+    const sp = $('navSpeed');
+    sp.classList.toggle('over', !!(ahead && ahead.max && speedKmh > ahead.max + 2));
+    if (!ahead) { box.hidden = true; return; }
+    box.hidden = false;
+    box.innerHTML = `${ahead.max ? `<span class="lim">${ahead.max}</span>` : CAM_SVG}<span>Radar à ${fmtNavDist(ahead.d)}</span>`;
+    const k = `radar${ahead.id}`;
+    if (ahead.d < 500 && !nav.said[k]) {
+      nav.said[k] = 1;
+      speak(`Attention, radar dans ${spokenDist(ahead.d)}${ahead.max ? `, limité à ${ahead.max}` : ''}`);
+      if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    }
+  }
 
   // ---------- Événements ----------
 
@@ -1742,6 +1908,7 @@
   $('setService').addEventListener('change', (e) => { state.settings.service = Math.max(0, Number(e.target.value) || 0); recomputeEtas(); renderAll(); });
   $('setOsrm').addEventListener('change', (e) => { state.settings.osrm = e.target.value.trim() || DEFAULT_SETTINGS.osrm; save(); });
   $('setAutoNav').addEventListener('change', (e) => { state.settings.autoNav = e.target.checked; save(); });
+  $('setRadars').addEventListener('change', (e) => { state.settings.radars = e.target.checked; save(); });
   document.querySelectorAll('input[name="endMode"], input[name="navApp"], input[name="region"]').forEach((i) => i.addEventListener('change', () => {
     state.settings[i.name] = i.value;
     if (i.name === 'endMode') state.route = null;
@@ -1814,5 +1981,5 @@
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
-  window.CapColis = { get state() { return state; }, optimize, queueFiles };
+  window.CapColis = { get state() { return state; }, optimize, queueFiles, addStop };
 })();

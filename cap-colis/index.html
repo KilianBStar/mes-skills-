@@ -39,9 +39,11 @@
       <div class="nav-street" id="navStreet"></div>
     </div>
   </div>
+  <div class="nav-radar" id="navRadar" hidden></div>
   <button class="fab nav-recenter" id="navRecenter" type="button" hidden aria-label="Recentrer sur ma position"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 20l-7-4-7 4z"/></svg></button>
   <div class="nav-bottom" id="navBottom" hidden>
     <div class="nav-panel" id="navDriving">
+      <div class="nav-speed" id="navSpeed" aria-label="Vitesse">–</div>
       <div class="nav-eta"><b id="navEta">–</b><span id="navRemain"></span><small id="navTarget"></small></div>
       <button class="nav-btn" id="navVoice" type="button" aria-label="Couper la voix" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>
       <button class="nav-btn" id="navWaze" type="button">Waze</button>
@@ -107,6 +109,7 @@
 
       <div class="sticky-cta">
         <button class="btn primary big" id="optimizeBtn" type="button">Optimiser la tournée</button>
+        <button class="btn ghost wide" id="skipOptBtn" type="button">Passer l'optimisation (garder mon ordre)</button>
         <div class="route-summary" id="routeSummary"></div>
       </div>
     </div>
@@ -144,6 +147,7 @@
           <label><input type="radio" name="navApp" value="apple"> Plans</label>
         </div>
         <label class="check"><input type="checkbox" id="setAutoNav" checked> Ouvrir la navigation vers l'adresse suivante à chaque livraison validée (Livré, Échec ou Passer)</label>
+        <label class="check"><input type="checkbox" id="setRadars" checked> Radars fixes dans le GPS intégré (alerte sonore et visuelle)</label>
         <p class="hint">GPS intégré : guidage vocal dans l'app, écran toujours allumé. Waze : alertes radars et trafic. Pendant le guidage, le bouton Waze bascule sur Waze à tout moment.</p>
       </div>
       <div class="grid2">
