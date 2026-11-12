@@ -504,3 +504,7 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .row-name { margin-top: 2px; opacity: .9; }
 .card-name { font-size: 1.05rem; margin-top: 4px; }
 .f-name { font-size: .9rem; color: var(--muted); }
+
+/* Écran de scan : plein écran ordinaire (pas de fenêtre modale : le sélecteur de photos iOS s'y bloquait) */
+.scan-screen { position: fixed; inset: 0; z-index: 1500; display: flex; flex-direction: column; background: var(--surface); color: var(--ink); }
+@media (min-width: 700px) { .scan-screen { left: 50%; width: 640px; margin-left: -320px; box-shadow: var(--shadow); } }

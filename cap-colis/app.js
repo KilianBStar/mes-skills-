@@ -1168,7 +1168,7 @@
 
   function openScan() {
     renderScan();
-    $('scanDialog').showModal();
+    $('scanDialog').hidden = false;
   }
   async function getOcrWorker() {
     if (ocrWorker) return ocrWorker;
@@ -1395,7 +1395,7 @@
     const photos = scanQueue.filter((q) => q.status === 'done').length;
     const colis = f.filter((x) => x.checked).reduce((a, x) => a + (x.packages || 1), 0);
     $('scanCount').textContent = f.length ? `${plural(photos, 'photo')} lue${photos > 1 ? 's' : ''} · ${plural(f.length, 'adresse')} · ${colis} colis` : '';
-    const cam = document.querySelector('label[for="camInput"]');
+    const cam = $('camBtn');
     if (cam) cam.textContent = scanQueue.length ? 'Photographier l\'écran suivant' : 'Prendre une photo';
     $('scanAdd').disabled = !checked || geocodingFound;
     $('scanClearFound').hidden = !f.length;
@@ -1480,8 +1480,11 @@
   }
 
   $('scanOpen').addEventListener('click', openScan);
-  $('camInput').addEventListener('change', (e) => { queueFiles(e.target.files); e.target.value = ''; });
-  $('libInput').addEventListener('change', (e) => { queueFiles(e.target.files); e.target.value = ''; });
+  for (const id of ['camInput', 'libInput']) {
+    const onFiles = (e) => { if (e.target.files && e.target.files.length) { const f = Array.from(e.target.files); e.target.value = ''; if ($('scanDialog').hidden) openScan(); queueFiles(f); } };
+    $(id).addEventListener('change', onFiles);
+    $(id).addEventListener('input', onFiles);
+  }
   $('pasteToggle').addEventListener('click', () => { $('pasteWrap').hidden = !$('pasteWrap').hidden; if (!$('pasteWrap').hidden) $('pasteText').focus(); });
   $('pasteGo').addEventListener('click', () => {
     const n = addFound(Scan.parsePasted($('pasteText').value), 'Texte collé');
@@ -1493,16 +1496,21 @@
   $('scanAdd').addEventListener('click', addFoundToTour);
   $('scanClearFound').addEventListener('click', () => { state.found = []; save(); renderFound(); });
   $('scanOptimize').addEventListener('click', () => {
-    $('scanDialog').close();
+    closeScan();
     $('scanResult').hidden = true;
     if (state.stops.some((s) => s.status !== 'pending')) reoptimizeRemaining(); else optimize();
   });
-  $('scanClose').addEventListener('click', () => $('scanDialog').close());
-  $('scanDialog').addEventListener('close', () => {
+  function closeScan() {
+    $('scanDialog').hidden = true;
+    // module de lecture libéré une fois le scan fermé (mémoire, processeur)
     setTimeout(() => {
-      if (ocrWorker && !ocrBusy && !$('scanDialog').open) { ocrWorker.terminate().catch(() => {}); ocrWorker = null; }
+      if (ocrWorker && !ocrBusy && $('scanDialog').hidden) { ocrWorker.terminate().catch(() => {}); ocrWorker = null; }
     }, 1000);
-  });
+  }
+  $('scanClose').addEventListener('click', closeScan);
+  // iPhone : le sélecteur de photos s'ouvre depuis un vrai bouton, champ fichier hors de l'écran superposé
+  $('camBtn').addEventListener('click', () => $('camInput').click());
+  $('libBtn').addEventListener('click', () => $('libInput').click());
 
   // ---------- Panneau qu'on tire (3 hauteurs) ----------
   const SNAPS = [0.24, 0.52, 0.9];

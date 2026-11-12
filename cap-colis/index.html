@@ -291,7 +291,7 @@
 </dialog>
 
 <!-- Scan du manifeste -->
-<dialog id="scanDialog" class="dialog fullsheet" aria-labelledby="scanTitle">
+<div id="scanDialog" class="scan-screen" role="dialog" aria-labelledby="scanTitle" hidden>
   <div class="sheet-body">
     <div class="sheet-head">
       <h2 id="scanTitle">Scanner la tournée</h2>
@@ -299,10 +299,8 @@
     </div>
     <p class="hint">Sur le Honeywell, ouvrez la liste des adresses et photographiez un écran (environ 5 adresses), faites défiler, photographiez le suivant, et ainsi de suite jusqu'au bout. Les adresses présentes sur deux photos ne comptent qu'une fois.</p>
     <div class="scan-buttons">
-      <label class="btn primary" for="camInput">Prendre une photo</label>
-      <input class="vh" id="camInput" type="file" accept="image/*" capture="environment">
-      <label class="btn ghost" for="libInput">Choisir dans Photos</label>
-      <input class="vh" id="libInput" type="file" accept="image/*" multiple>
+      <button class="btn primary" id="camBtn" type="button">Prendre une photo</button>
+      <button class="btn ghost" id="libBtn" type="button">Choisir dans Photos</button>
       <button class="btn ghost" id="pasteToggle" type="button">Coller du texte</button>
     </div>
     <div id="pasteWrap" class="field" hidden>
@@ -329,7 +327,7 @@
   <div class="sheet-foot">
     <button class="btn primary big" id="scanAdd" type="button" disabled>Ajouter</button>
   </div>
-</dialog>
+</div>
 
 <!-- Fiche d'un arrêt -->
 <dialog id="stopDialog" class="dialog">
@@ -401,6 +399,9 @@
     </div>
   </form>
 </dialog>
+
+<input class="vh" id="camInput" type="file" accept="image/*" capture="environment" aria-hidden="true" tabindex="-1">
+<input class="vh" id="libInput" type="file" accept="image/*" multiple aria-hidden="true" tabindex="-1">
 
 <div class="toast" id="toast" role="status" hidden><span id="toastText"></span><button class="btn link" id="toastUndo" type="button" hidden>Annuler</button></div>
 
