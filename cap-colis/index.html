@@ -299,11 +299,12 @@
     </div>
     <p class="hint">Sur le Honeywell, ouvrez la liste des adresses et photographiez un écran (environ 5 adresses), faites défiler, photographiez le suivant, et ainsi de suite jusqu'au bout. Les adresses présentes sur deux photos ne comptent qu'une fois.</p>
     <div class="scan-buttons">
+      <button class="btn primary live-btn" id="liveBtn" type="button">Scanner avec la caméra</button>
       <div class="paste-zone" id="pasteZone" contenteditable="true" role="textbox" aria-label="Zone où coller les captures" inputmode="none">
         <b>Collez vos captures ici</b>
         <span>Dans Photos : sélectionnez les captures → Partager → Copier.<br>Ici : appui long → Coller.</span>
       </div>
-      <button class="btn primary" id="camBtn" type="button">Prendre une photo</button>
+      <button class="btn ghost" id="camBtn" type="button">Prendre une photo</button>
       <button class="btn ghost" id="libBtn" type="button">Choisir dans Photos</button>
       <button class="btn ghost" id="oneBtn" type="button">Une photo à la fois</button>
       <button class="btn ghost" id="pasteToggle" type="button">Coller du texte</button>
@@ -405,6 +406,16 @@
   </form>
 </dialog>
 
+<div class="live" id="live" hidden>
+  <video id="liveVideo" playsinline muted autoplay></video>
+  <div class="live-frame" aria-hidden="true"></div>
+  <div class="live-top"><span id="liveCount">Visez l'écran du Honeywell</span></div>
+  <div class="live-bar">
+    <button class="btn ghost live-done" id="liveDone" type="button">Terminer</button>
+    <button class="shutter" id="liveShot" type="button" aria-label="Capturer"></button>
+    <span class="live-hint">Faites défiler puis capturez l'écran suivant</span>
+  </div>
+</div>
 <input class="vh" id="camInput" type="file" accept="image/*" capture="environment" aria-hidden="true" tabindex="-1">
 <input class="vh" id="libInput" type="file" accept="image/*" multiple aria-hidden="true" tabindex="-1">
 <input class="vh" id="oneInput" type="file" accept="image/*" aria-hidden="true" tabindex="-1">

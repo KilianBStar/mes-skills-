@@ -1400,7 +1400,7 @@
     $('scanAdd').disabled = !checked || geocodingFound;
     $('scanClearFound').hidden = !f.length;
   }
-  function renderScan() { renderQueue(); renderFound(); }
+  function renderScan() { renderQueue(); renderFound(); if (!$('live').hidden) updateLiveCount(); }
 
   $('foundList').addEventListener('change', (e) => {
     const li = e.target.closest('[data-fid]'); if (!li) return;
@@ -1512,6 +1512,45 @@
   $('camBtn').addEventListener('click', () => $('camInput').click());
   $('libBtn').addEventListener('click', () => $('libInput').click());
   $('oneBtn').addEventListener('click', () => $('oneInput').click());
+
+  // Scanner en direct avec la caméra (pas de galerie : rien ne bloque)
+  let liveStream = null;
+  async function openLive() {
+    try {
+      liveStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } });
+    } catch (e) {
+      toast('Caméra refusée. Réglages > Safari > Caméra : Autoriser, puis réessayez.');
+      return;
+    }
+    const v = $('liveVideo');
+    v.srcObject = liveStream;
+    $('live').hidden = false;
+    try { await v.play(); } catch (e) { /* lecture auto */ }
+    updateLiveCount();
+  }
+  function closeLive() {
+    if (liveStream) liveStream.getTracks().forEach((t) => t.stop());
+    liveStream = null;
+    $('liveVideo').srcObject = null;
+    $('live').hidden = true;
+  }
+  function updateLiveCount() {
+    const busy = scanQueue.filter((q) => ['waiting', 'prep', 'reading'].includes(q.status)).length;
+    const n = state.found.length;
+    $('liveCount').textContent = `${plural(scanQueue.length, 'capture')} · ${plural(n, 'adresse')}${busy ? ` · lecture de ${busy}…` : ''}`;
+  }
+  $('liveBtn').addEventListener('click', openLive);
+  $('liveDone').addEventListener('click', closeLive);
+  $('liveShot').addEventListener('click', () => {
+    const v = $('liveVideo');
+    if (!v.videoWidth) return;
+    const c = document.createElement('canvas');
+    c.width = v.videoWidth; c.height = v.videoHeight;
+    c.getContext('2d').drawImage(v, 0, 0);
+    $('live').classList.remove('flash'); void $('live').offsetWidth; $('live').classList.add('flash');
+    if (navigator.vibrate) navigator.vibrate(30);
+    c.toBlob((b) => { if (b) { queueFiles([new File([b], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' })]); updateLiveCount(); } }, 'image/jpeg', 0.92);
+  });
   // Coller des captures (contourne le sélecteur de photos iOS qui reste bloqué dans les apps d'écran d'accueil)
   const zone = $('pasteZone');
   const zoneHTML = zone.innerHTML;
