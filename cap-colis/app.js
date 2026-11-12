@@ -1412,30 +1412,54 @@
     save(); renderFound();
   });
 
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  /** Nouvel essai en cas de refus (trop de demandes) ou de coupure : 0,8 s, 1,6 s, 3,2 s. */
+  async function withRetry(fn, tries = 4) {
+    let wait = 800;
+    for (let i = 0; ; i++) {
+      try { return await fn(); } catch (e) { if (i >= tries - 1) throw e; await sleep(wait); wait *= 2; }
+    }
+  }
+  /** Second service (OpenStreetMap / Nominatim), Belgique uniquement, si le premier ne trouve rien. */
+  async function nominatimBE(q) {
+    const r = await fetchJSON(`https://nominatim.openstreetmap.org/search?format=jsonv2&countrycodes=be&limit=1&addressdetails=1&accept-language=fr&q=${encodeURIComponent(q)}`);
+    return (r || []).map((x) => {
+      const a = x.address || {};
+      const street = [a.road || a.pedestrian || a.square || '', a.house_number || ''].filter(Boolean).join(' ');
+      const city = a.city || a.town || a.village || a.municipality || '';
+      return { label: street ? `${street}, ${[a.postcode, city].filter(Boolean).join(' ')}` : x.display_name, lat: +x.lat, lon: +x.lon, type: a.house_number ? 'housenumber' : 'street' };
+    });
+  }
+  async function geocodeOne(address) {
+    let res = [];
+    try { res = await withRetry(() => geoSearch(address, 1)); } catch (e) { res = []; }
+    if (!res.length) {
+      await sleep(1100); // Nominatim : une demande par seconde au plus
+      try { res = await withRetry(() => nominatimBE(address.replace(/\/\S+/g, '')), 2); } catch (e) { res = []; }
+    }
+    return res[0] || null;
+  }
+
   async function addFoundToTour() {
     const todo = state.found.filter((f) => f.checked && f.address);
     if (!todo.length || geocodingFound) return;
     geocodingFound = true;
+    $('scanResult').hidden = true;
     renderFound();
-    let ok = 0, k = 0;
-    const worker = async () => {
-      while (k < todo.length) {
-        const f = todo[k++];
-        $('scanBusy').textContent = `Localisation des adresses ${Math.min(k, todo.length)}/${todo.length}…`;
-        try {
-          const res = await geoSearch(f.address, 1);
-          const g = res[0];
-          if (!g) { f.error = 'Introuvable : corrigez l\'adresse'; continue; }
-          const weak = (g.score != null && g.score < 0.5) || (g.type && g.type !== 'housenumber' && Scan.hasHouseNumber(f.address.split(',')[0]));
-          addStop(g, { note: f.note, packages: f.packages, check: weak || !f.sure, silent: true });
-          f.added = true; f.error = ''; ok++;
-        } catch (e) {
-          f.error = 'Recherche impossible : vérifiez la connexion';
-        }
-      }
-    };
+    let ok = 0, missing = 0;
     try {
-      await Promise.all([worker(), worker(), worker(), worker()]);
+      // une adresse à la fois, avec une courte pause : le service gratuit refuse les rafales
+      for (let k = 0; k < todo.length; k++) {
+        const f = todo[k];
+        $('scanBusy').textContent = `Localisation des adresses ${k + 1}/${todo.length}… (${ok} ajoutée${ok > 1 ? 's' : ''})`;
+        const g = await geocodeOne(f.address);
+        if (!g) { f.error = 'Introuvable : corrigez l\'adresse puis touchez Ajouter'; missing++; continue; }
+        const weak = (g.score != null && g.score < 0.5) || (g.type && g.type !== 'housenumber' && Scan.hasHouseNumber(f.address.split(',')[0]));
+        addStop(g, { note: f.note, packages: f.packages, check: weak || !f.sure, silent: true });
+        f.added = true; f.error = ''; ok++;
+        if (k % 5 === 4) { save(); renderFound(); } // on garde la progression si l'app se ferme
+        await sleep(250);
+      }
     } finally {
       state.found = state.found.filter((f) => !f.added);
       geocodingFound = false;
@@ -1444,9 +1468,11 @@
       renderScan();
       $('scanBusy').textContent = '';
     }
-    const left = state.found.filter((f) => f.checked).length;
-    $('scanResult').hidden = !ok;
-    $('scanResultText').textContent = `${plural(ok, 'arrêt')} ajouté${ok > 1 ? 's' : ''}${left ? `. Corrigez ${left === 1 ? 'l\'adresse restante' : `les ${left} adresses restantes`} ci-dessus.` : '.'}`;
+    $('scanResult').hidden = false;
+    $('scanResultText').textContent = ok
+      ? `${plural(ok, 'arrêt')} ajouté${ok > 1 ? 's' : ''}${missing ? `. ${missing} adresse${missing > 1 ? 's' : ''} à corriger ci-dessus (en rouge), puis touchez Ajouter.` : '.'}`
+      : `Aucune adresse trouvée. Vérifiez la connexion, corrigez les adresses en rouge puis touchez Ajouter.`;
+    $('scanOptimize').hidden = !ok;
   }
 
   $('scanOpen').addEventListener('click', openScan);
