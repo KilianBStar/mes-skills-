@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&display=swap">
 <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
 <link rel="stylesheet" href="style.css">
 </head>
@@ -27,6 +27,34 @@
   <div class="fab-col">
     <button class="fab" id="btn3d" type="button">2D</button>
     <button class="fab" id="btnFit" type="button" aria-label="Voir toute la tournée"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
+  </div>
+
+
+  <!-- GPS intégré -->
+  <div class="nav-top" id="navTop" hidden>
+    <div class="nav-arrow" id="navArrow" aria-hidden="true"></div>
+    <div class="nav-txt">
+      <div class="nav-dist" id="navDist">…</div>
+      <div class="nav-instr" id="navInstr">Recherche de votre position</div>
+      <div class="nav-street" id="navStreet"></div>
+    </div>
+  </div>
+  <button class="fab nav-recenter" id="navRecenter" type="button" hidden aria-label="Recentrer sur ma position"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 20l-7-4-7 4z"/></svg></button>
+  <div class="nav-bottom" id="navBottom" hidden>
+    <div class="nav-panel" id="navDriving">
+      <div class="nav-eta"><b id="navEta">–</b><span id="navRemain"></span><small id="navTarget"></small></div>
+      <button class="nav-btn" id="navVoice" type="button" aria-label="Couper la voix" aria-pressed="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"/><path class="wave" d="M15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"/></svg></button>
+      <button class="nav-btn" id="navWaze" type="button">Waze</button>
+      <button class="nav-btn quit" id="navQuit" type="button">Quitter</button>
+    </div>
+    <div class="nav-panel arrived" id="navArrived" hidden>
+      <div class="nav-arr-txt"><b>Vous êtes arrivé</b><span id="navArrAddr"></span><small id="navArrNote"></small></div>
+      <div class="nav-arr-actions">
+        <button class="btn ok" type="button" id="navDone">Livré</button>
+        <button class="btn bad" type="button" id="navFail">Échec</button>
+        <button class="btn ghost" type="button" id="navSkip">Passer</button>
+      </div>
+    </div>
   </div>
 
   <section class="sheet" id="sheet" aria-label="Arrêts de la tournée">
@@ -110,12 +138,13 @@
       <div class="field">
         <span class="label">Navigation</span>
         <div class="seg" role="radiogroup" aria-label="Application de navigation">
-          <label><input type="radio" name="navApp" value="waze" checked> Waze</label>
+          <label><input type="radio" name="navApp" value="cap" checked> GPS intégré</label>
+          <label><input type="radio" name="navApp" value="waze"> Waze</label>
           <label><input type="radio" name="navApp" value="google"> Google Maps</label>
           <label><input type="radio" name="navApp" value="apple"> Plans</label>
         </div>
         <label class="check"><input type="checkbox" id="setAutoNav" checked> Ouvrir la navigation vers l'adresse suivante à chaque livraison validée (Livré, Échec ou Passer)</label>
-        <p class="hint">Waze affiche les radars et alertes pendant le trajet vers chaque arrêt.</p>
+        <p class="hint">GPS intégré : guidage vocal dans l'app, écran toujours allumé. Waze : alertes radars et trafic. Pendant le guidage, le bouton Waze bascule sur Waze à tout moment.</p>
       </div>
       <div class="grid2">
         <div class="field">
