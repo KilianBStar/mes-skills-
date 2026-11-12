@@ -4,10 +4,10 @@
 
   // ---------- État & persistance ----------
   const STORE_KEY = 'cap-colis-v1';
-  const SETTINGS_VERSION = 5;
+  const SETTINGS_VERSION = 6;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'cap',
-    autoNav: true, radars: true, satellite: false, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: false,
+    autoNav: true, radars: true, satellite: false, region: 'be', osrm: 'https://router.project-osrm.org', map3d: false,
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
@@ -27,6 +27,7 @@
         if ((old.v || 1) < 3) s.settings.region = 'auto';
         if ((old.v || 1) < 4) s.settings.navApp = 'cap'; // GPS intégré demandé
         if ((old.v || 1) < 5) { s.settings.satellite = false; s.settings.map3d = false; } // plan à plat avec les maisons
+        if ((old.v || 1) < 6) s.settings.region = 'be'; // recherche d'adresses en Belgique uniquement
         s.settings.v = SETTINGS_VERSION;
         s.found = Array.isArray(s.found) ? s.found : [];
         s.seq = s.seq || 0;
@@ -180,9 +181,16 @@
   };
 
   // ---------- Géocodage ----------
+  let lastKnownPos = null; // dernière position GPS connue (guidage, bouton ◎, point bleu)
+  function biasPoint() {
+    if (typeof nav !== 'undefined' && nav.pos) return nav.pos;
+    if (lastKnownPos) return lastKnownPos;
+    if (map) { const c = map.getCenter(); if (map.getZoom() > 9) return { lat: c.lat, lon: c.lng }; }
+    return state.start || state.stops[state.stops.length - 1] || { lat: 50.41, lon: 4.44 };
+  }
   function biasParams() {
-    const p = state.start || state.stops[state.stops.length - 1];
-    return p ? `&lat=${p.lat}&lon=${p.lon}` : '';
+    const p = biasPoint();
+    return `&lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}`;
   }
   function photonLabel(p) {
     // Belgique et Pays-Bas : le numéro suit la rue (« Rue de la Vallée 2 »)
@@ -196,6 +204,7 @@
   const BE_BBOX = '2.38,49.45,6.45,51.56';
   function countryFor(q) {
     const r = state.settings.region;
+    if (r === 'be') return 'BE';
     if (r === 'fr') return 'FR';
     if (r === 'be') return 'BE';
     if (r === 'world') return '';
@@ -205,11 +214,25 @@
     return p.lat > 49.45 && p.lat < 51.56 && p.lon > 2.38 && p.lon < 6.45 && !(p.lat < 50.1 && p.lon < 4.1) && !(p.lat < 51.1 && p.lon < 2.55);
   }
   async function photon(q, limit, bbox) {
-    const r = await fetchJSON(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}&lang=fr${biasParams()}${bbox ? `&bbox=${bbox}` : ''}`);
-    return (r.features || []).map((f) => ({
+    // zoom + location_bias_scale : les adresses proches de vous passent devant
+    const r = await fetchJSON(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}&lang=fr${biasParams()}&zoom=14&location_bias_scale=0.4${bbox ? `&bbox=${bbox}` : ''}`);
+    return (r.features || []).filter((f) => !bbox || !f.properties.countrycode || f.properties.countrycode === 'BE').map((f) => ({
       label: photonLabel(f.properties), lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
       type: f.properties.housenumber ? 'housenumber' : 'street',
     }));
+  }
+  /** Tri façon livreur : numéro tapé → d'abord les adresses avec ce numéro ; puis les plus proches ; sans doublons. */
+  function rankResults(q, list) {
+    const num = (q.match(/\b(\d{1,4})[a-z]?\b/i) || [])[1];
+    const me = biasPoint();
+    const seen = new Set();
+    return list.filter((r) => { const k = r.label.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
+      .map((r, i) => {
+        const hasNum = num && new RegExp(`\\b${num}[a-z]?\\b`, 'i').test(r.label.split(',')[0]);
+        const km = Optimizer.haversine(me, r) / 1000;
+        return { r, score: i * 1 + (hasNum ? -6 : num ? 3 : 0) + Math.min(km, 60) * 0.08 };
+      })
+      .sort((a, b) => a.score - b.score).map((x) => x.r);
   }
   async function geoSearch(q, limit = 5) {
     const country = countryFor(q);
@@ -221,10 +244,10 @@
       } catch (e) { /* on passe à Photon */ }
     }
     if (country === 'BE') {
-      let out = await photon(q, limit, BE_BBOX);
+      let out = await photon(q, Math.max(limit, 8), BE_BBOX);
       // OCR approximatif : on réessaie sans le numéro de boîte ni la ponctuation
-      if (!out.length) out = await photon(q.replace(/\/\S+/g, '').replace(/[,;]/g, ' '), limit, BE_BBOX);
-      return out;
+      if (!out.length) out = await photon(q.replace(/\/\S+/g, '').replace(/[,;]/g, ' '), Math.max(limit, 8), BE_BBOX);
+      return rankResults(q, out).slice(0, limit);
     }
     try {
       return await photon(q, limit, '');
@@ -251,22 +274,33 @@
   function attachSearch(input, list, onPick) {
     let timer, seq = 0, items = [], active = -1;
     const close = () => { list.hidden = true; active = -1; };
-    const render = () => {
-      list.innerHTML = items.length
-        ? items.map((it, i) => `<li role="option" data-i="${i}" aria-selected="${i === active}">${esc(it.label)}</li>`).join('')
-        : '<li class="info">Aucune adresse trouvée</li>';
+    const CLOCK = '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>';
+    const PIN = '<svg viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/></svg>';
+    const render = (searching) => {
+      const rows = items.map((it, i) => {
+        const { street, city } = splitLabel(it.label);
+        return `<li role="option" data-i="${i}" aria-selected="${i === active}" class="sug">${it.recent ? CLOCK : PIN}<span><b>${esc(street)}</b>${city ? `<small>${esc(city)}</small>` : ''}</span></li>`;
+      }).join('');
+      list.innerHTML = rows + (searching ? '<li class="info">Recherche…</li>' : items.length ? '' : '<li class="info">Aucune adresse trouvée en Belgique</li>');
       list.hidden = false;
     };
     input.addEventListener('input', () => {
       clearTimeout(timer);
       const q = input.value.trim();
-      if (q.length < 3) { close(); return; }
+      if (q.length < 2) { close(); return; }
+      // tout de suite : vos adresses déjà livrées qui correspondent
+      const local = recentMatches(q);
+      items = local; active = -1; render(true);
       timer = setTimeout(async () => {
         const my = ++seq;
-        list.innerHTML = '<li class="info">Recherche…</li>'; list.hidden = false;
-        try { const res = await geoSearch(q); if (my !== seq) return; items = res; active = -1; render(); }
-        catch (e) { if (my === seq) list.innerHTML = '<li class="info">Recherche impossible. Vérifiez la connexion.</li>'; }
-      }, 300);
+        try {
+          const res = await geoSearch(q, 6);
+          if (my !== seq) return;
+          const keys = new Set(local.map((l) => l.label.toLowerCase()));
+          items = [...local, ...res.filter((r) => !keys.has(r.label.toLowerCase()))].slice(0, 8);
+          active = -1; render(false);
+        } catch (e) { if (my === seq) { render(false); if (!items.length) list.innerHTML = '<li class="info">Recherche impossible. Vérifiez la connexion.</li>'; } }
+      }, 180);
     });
     input.addEventListener('keydown', (e) => {
       if (list.hidden) return;
@@ -283,6 +317,24 @@
     });
     input.addEventListener('blur', () => setTimeout(close, 150));
     function pick(it) { close(); seq++; input.blur(); onPick(it); }
+  }
+
+  /** Adresses déjà connues (tournée en cours et anciennes tournées) qui contiennent tous les mots tapés. */
+  function recentMatches(q) {
+    const n = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const words = n(q).split(/[\s,]+/).filter(Boolean);
+    if (!words.length) return [];
+    const seen = new Set(), out = [];
+    const all = [...state.stops, ...state.history.flatMap((h) => h.stops || [])];
+    for (const s of all) {
+      if (!s || !s.label || s.lat == null) continue;
+      const k = n(s.label);
+      if (seen.has(k)) continue;
+      seen.add(k);
+      if (words.every((w) => k.includes(w))) out.push({ label: s.label, lat: s.lat, lon: s.lon, recent: true, type: 'housenumber' });
+      if (out.length >= 3) break;
+    }
+    return out;
   }
 
   // ---------- Carte 3D (MapLibre + OpenFreeMap) ----------
@@ -307,7 +359,9 @@
       return;
     }
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'top-right');
-    map.addControl(new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true }), 'top-right');
+    const geo = new maplibregl.GeolocateControl({ positionOptions: { enableHighAccuracy: true }, trackUserLocation: true });
+    geo.on('geolocate', (e) => { lastKnownPos = { lat: e.coords.latitude, lon: e.coords.longitude }; });
+    map.addControl(geo, 'top-right');
     map.on('style.load', () => {
       if (styleReady) return;
       styleReady = true;
@@ -1873,6 +1927,7 @@
     else if (compass != null && speed < 1) nav.heading = compass;
     if (!nav.prev || moved > 2) nav.prev = pos;
     nav.pos = pos;
+    lastKnownPos = pos;
     if (!nav.route) { await reroute(pos); if (!nav.active || session !== nav.session) return; }
     const rt = nav.route;
     if (!rt) return;
@@ -2197,6 +2252,7 @@
   $('startGps').addEventListener('click', async () => {
     try {
       const p = await locate();
+      lastKnownPos = p;
       setStart({ label: await geoReverse(p.lat, p.lon), lat: p.lat, lon: p.lon });
     } catch (e) { toast('Position introuvable. Autorisez la localisation ou saisissez l\'adresse.'); }
   });

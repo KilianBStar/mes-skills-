@@ -477,3 +477,10 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .card .house { height: 120px; }
 .nav-arr-side { font: 500 1.9rem/1.15 var(--font-display); color: var(--ink); }
 .nav-arr-side:empty { display: none; }
+
+/* Suggestions d'adresses : icône + rue en gras + ville */
+.suggest li.sug { display: flex; align-items: center; gap: 12px; padding: 10px 12px; }
+.suggest li.sug svg { width: 20px; height: 20px; flex: none; color: var(--muted); }
+.suggest li.sug span { display: flex; flex-direction: column; min-width: 0; }
+.suggest li.sug b { font-weight: 500; }
+.suggest li.sug small { color: var(--muted); font-size: .88rem; }
