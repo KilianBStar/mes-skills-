@@ -1394,8 +1394,14 @@
     const busy = scanQueue.filter((q) => ['waiting', 'prep', 'reading'].includes(q.status)).length;
     if (!geocodingFound) $('scanBusy').textContent = busy ? `${plural(busy, 'photo')} en lecture. Continuez à photographier si besoin.` : '';
   }
+  /** Plus aucune adresse scannée : on efface les photos déjà lues (celles en cours de lecture restent). */
+  function clearReadPhotos() {
+    for (let i = scanQueue.length - 1; i >= 0; i--) if (scanQueue[i].status === 'done' || scanQueue[i].status === 'error') scanQueue.splice(i, 1);
+    if (!scanQueue.length) { $('scanQueue').innerHTML = ''; }
+  }
   function renderFound() {
     const f = state.found;
+    if (!f.length && !geocodingFound && scanQueue.length && !scanQueue.some((q) => ['waiting', 'prep', 'reading'].includes(q.status))) { clearReadPhotos(); renderQueue(); }
     const checked = f.filter((x) => x.checked).length;
     $('foundTitle').textContent = f.length ? `Adresses trouvées (${f.length})` : 'Adresses trouvées';
     $('foundEmpty').hidden = f.length > 0;
