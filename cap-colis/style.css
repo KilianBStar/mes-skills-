@@ -465,3 +465,4 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .drawer-by { margin: 0; padding: 8px 20px; color: var(--muted); font-size: .85rem; }
 .scan-count { margin: 0; font-size: .95rem; font-weight: 500; color: var(--ink); }
 .scan-count:empty { display: none; }
+.nav-panel .nav-btn { padding: 0 10px; }

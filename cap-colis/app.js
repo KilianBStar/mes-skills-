@@ -1937,6 +1937,13 @@
     const s = nav.stop; stopNav(true);
     window.location.href = IS_IOS ? `waze://?ll=${s.lat},${s.lon}&navigate=yes` : `https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
   });
+  // Plans d'Apple (vue 3D des villes couvertes) pour le trajet vers l'arrêt en cours
+  $('navPlans').addEventListener('click', () => {
+    const s = nav.stop; stopNav(true);
+    const a = document.createElement('a');
+    a.href = `https://maps.apple.com/?daddr=${s.lat},${s.lon}&dirflg=d`; a.target = '_blank'; a.rel = 'noopener';
+    document.body.appendChild(a); a.click(); a.remove();
+  });
   $('navVoice').addEventListener('click', () => {
     nav.voice = !nav.voice;
     $('navVoice').setAttribute('aria-pressed', String(nav.voice));
