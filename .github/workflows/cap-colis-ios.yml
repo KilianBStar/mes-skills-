@@ -44,14 +44,14 @@ jobs:
       - name: Icône et autorisations iOS
         run: |
           P=ios/App/App/Info.plist
-          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Kilivre photographie le manifeste et les étiquettes pour lire les adresses.'" "$P"
-          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Kilivre lit les adresses sur les photos que vous choisissez.'" "$P"
-          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Kilivre utilise votre position pour vous guider et recalculer la tournée.'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string 'Kiliroute photographie le manifeste et les étiquettes pour lire les adresses.'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string 'Kiliroute lit les adresses sur les photos que vous choisissez.'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string 'Kiliroute utilise votre position pour vous guider et recalculer la tournée.'" "$P"
           /usr/libexec/PlistBuddy -c "Add :LSApplicationQueriesSchemes array" -c "Add :LSApplicationQueriesSchemes:0 string waze" -c "Add :LSApplicationQueriesSchemes:1 string comgooglemaps" "$P"
           # guidage écran verrouillé / en arrière-plan
-          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Kilivre continue le guidage quand l’écran est verrouillé ou que vous ouvrez une autre app.'" "$P"
+          /usr/libexec/PlistBuddy -c "Add :NSLocationAlwaysAndWhenInUseUsageDescription string 'Kiliroute continue le guidage quand l’écran est verrouillé ou que vous ouvrez une autre app.'" "$P"
           /usr/libexec/PlistBuddy -c "Add :UIBackgroundModes array" -c "Add :UIBackgroundModes:0 string location" "$P"
-          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Kilivre'" "$P" || true
+          /usr/libexec/PlistBuddy -c "Set :CFBundleDisplayName 'Kiliroute'" "$P" || true
           ICON_DIR=ios/App/App/Assets.xcassets/AppIcon.appiconset
           if [ -d "$ICON_DIR" ]; then
             for f in "$ICON_DIR"/*.png; do sips -z 1024 1024 icon-1024.png --out "$f" >/dev/null; done
@@ -65,10 +65,10 @@ jobs:
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build | tail -30
           APP=$(find build/Build/Products -name 'App.app' -maxdepth 2 | head -1)
           mkdir -p Payload && cp -R "$APP" Payload/
-          zip -qry ../../Kilivre-non-signe.ipa Payload
-          ls -la ../../Kilivre-non-signe.ipa
+          zip -qry ../../Kiliroute-non-signe.ipa Payload
+          ls -la ../../Kiliroute-non-signe.ipa
       - uses: actions/upload-artifact@v4
         with:
-          name: Kilivre-iOS-non-signe
-          path: cap-colis/Kilivre-non-signe.ipa
+          name: Kiliroute-iOS-non-signe
+          path: cap-colis/Kiliroute-non-signe.ipa
           retention-days: 30
