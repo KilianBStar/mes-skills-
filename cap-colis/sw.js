@@ -1,7 +1,7 @@
 // Service worker : garde l'application en cache pour l'ouvrir sans réseau.
 // Les adresses, itinéraires et fonds de carte passent toujours par le réseau.
-const CACHE = 'cap-colis-v4';
-const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'optimizer.js', 'scan.js', 'manifest.webmanifest',
+const CACHE = 'cap-colis-v5';
+const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'optimizer.js', 'scan.js', 'postcodes-be.js', 'manifest.webmanifest',
   'icon.svg', 'favicon-32.png', 'icon-180.png', 'icon-192.png', 'icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js',
   'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js',

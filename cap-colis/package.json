@@ -4,7 +4,7 @@
   "private": true,
   "description": "Optimiseur de tournée pour livreur de colis (web + iOS)",
   "scripts": {
-    "test": "node --test tests/optimizer.test.js tests/scan.test.js",
+    "test": "node --test tests/optimizer.test.js tests/scan.test.js tests/postcodes.test.js",
     "build:web": "node scripts/build-web.mjs",
     "ios:sync": "npm run build:web && npx cap sync ios",
     "ios:open": "npx cap open ios"

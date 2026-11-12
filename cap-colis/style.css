@@ -539,3 +539,5 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .shot { position: relative; flex: none; height: 72px; padding: 0; border: 2px solid #fff; border-radius: 10px; overflow: hidden; background: #000; }
 .shot img { height: 100%; width: auto; display: block; max-width: none; }
 .shot span { position: absolute; top: 2px; right: 4px; color: #fff; font-size: 18px; text-shadow: 0 1px 3px #000; }
+.f-city { display: flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); }
+.f-city select { flex: 1; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); font: inherit; }

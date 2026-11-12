@@ -1295,12 +1295,21 @@
     return r;
   }
 
+  /** « RUE X 12, 6200 » → « RUE X 12, 6200 Châtelet » ; ville mal lue corrigée d'après le code postal. */
+  function fixCity(address) {
+    const m = String(address || '').match(/^(.*?),\s*(\d{4})\s*(.*)$/);
+    if (!m || !window.Postcodes) return { address, cp: '', city: '', street: address };
+    const city = Postcodes.cityFor(m[2], m[3].trim());
+    return { address: `${m[1]}, ${m[2]}${city ? ` ${city}` : ''}`, cp: m[2], city, street: m[1] };
+  }
   const addrKey = (a) => String(a).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
   function addFound(list, source) {
     const known = new Set(state.found.map((f) => addrKey(f.address)));
     const existing = new Set(state.stops.map((s) => addrKey(s.label)));
     let added = 0;
-    for (const r of list) {
+    for (const r0 of list) {
+      const fc = fixCity(r0.address);
+      const r = { ...r0, address: fc.address };
       let k = addrKey(r.address);
       if (!k) continue;
       // « INCONNU » sans rue : on le reconnaît grâce à l'adresse qui le précède sur la liste
@@ -1395,6 +1404,7 @@
         <input type="checkbox" class="f-check" aria-label="Garder cette adresse" ${x.checked ? 'checked' : ''}>
         <div class="f-body">
           <input type="text" class="f-addr" value="${esc(x.address)}" aria-label="Adresse" autocomplete="off">
+          ${cityPicker(x)}
           ${x.name ? `<div class="f-name">${PERSON}${esc(x.name)}</div>` : ''}
           <div class="f-meta">${x.packages > 1 ? `<span class="pill">${x.packages} colis</span>` : ''}${x.incomplete ? '<span class="pill late">Rue manquante : complétez</span>' : !x.sure ? '<span class="pill window">À vérifier</span>' : ''}${x.error ? `<span class="pill late">${esc(x.error)}</span>` : ''}${x.note ? `<span class="meta-note">${esc(x.note)}</span>` : ''}</div>
         </div>
@@ -1409,13 +1419,26 @@
     $('scanAdd').disabled = !checked || geocodingFound;
     $('scanClearFound').hidden = !f.length;
   }
+  /** Menu des localités quand un code postal en couvre plusieurs (6200 : Châtelet, Bouffioulx, Châtelineau). */
+  function cityPicker(x) {
+    const fc = fixCity(x.address);
+    const list = fc.cp && window.Postcodes ? Postcodes.localities(fc.cp) : [];
+    if (list.length < 2) return '';
+    const opts = list.map((l) => `<option value="${esc(l)}"${l === fc.city ? ' selected' : ''}>${esc(l)}</option>`).join('');
+    return `<label class="f-city"><span>${fc.cp}</span><select class="f-city-sel" aria-label="Ville pour ${fc.cp}">${opts}${list.includes(fc.city) ? '' : `<option selected>${esc(fc.city)}</option>`}</select></label>`;
+  }
   function renderScan() { renderQueue(); renderFound(); }
 
   $('foundList').addEventListener('change', (e) => {
     const li = e.target.closest('[data-fid]'); if (!li) return;
     const x = state.found.find((f) => f.id === li.dataset.fid); if (!x) return;
     if (e.target.classList.contains('f-check')) x.checked = e.target.checked;
-    if (e.target.classList.contains('f-addr')) { x.address = e.target.value.trim(); x.error = ''; x.sure = true; x.incomplete = false; x.checked = true; }
+    if (e.target.classList.contains('f-addr')) { x.address = fixCity(e.target.value.trim()).address; x.error = ''; x.sure = true; x.incomplete = false; x.checked = true; }
+    if (e.target.classList.contains('f-city-sel')) {
+      const fc = fixCity(x.address);
+      if (fc.cp) x.address = `${fc.street}, ${fc.cp} ${e.target.value}`;
+      x.error = '';
+    }
     save(); renderFound();
   });
   $('foundList').addEventListener('click', (e) => {
