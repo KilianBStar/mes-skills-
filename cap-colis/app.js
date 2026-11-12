@@ -26,10 +26,12 @@
         if ((old.v || 1) < 3) s.settings.region = 'auto';
         s.settings.v = SETTINGS_VERSION;
         s.found = Array.isArray(s.found) ? s.found : [];
+        s.seq = s.seq || 0;
+        for (const st of s.stops) if (!st.seq) st.seq = ++s.seq;
         return s;
       }
     } catch (e) { /* stockage indisponible */ }
-    return { settings: Object.assign({}, DEFAULT_SETTINGS), start: null, end: null, stops: [], route: null, found: [] };
+    return { settings: Object.assign({}, DEFAULT_SETTINGS), start: null, end: null, stops: [], route: null, found: [], seq: 0 };
   }
   function save() {
     try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* stockage plein ou bloqué */ }
@@ -233,8 +235,8 @@
     map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     const layout = { 'line-join': 'round', 'line-cap': 'round' };
     map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout, filter: ['!=', ['get', 'dashed'], true], paint: { 'line-color': '#FFFFFF', 'line-width': 9, 'line-opacity': 0.9 } });
-    map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout, filter: ['!=', ['get', 'dashed'], true], paint: { 'line-color': '#B85A12', 'line-width': 5 } });
-    map.addLayer({ id: 'route-dashed', type: 'line', source: 'route', layout, filter: ['==', ['get', 'dashed'], true], paint: { 'line-color': '#B85A12', 'line-width': 4, 'line-dasharray': [1.5, 1.5] } });
+    map.addLayer({ id: 'route-line', type: 'line', source: 'route', layout, filter: ['!=', ['get', 'dashed'], true], paint: { 'line-color': '#3B7BEA', 'line-width': 5 } });
+    map.addLayer({ id: 'route-dashed', type: 'line', source: 'route', layout, filter: ['==', ['get', 'dashed'], true], paint: { 'line-color': '#3B7BEA', 'line-width': 4, 'line-dasharray': [1.5, 1.5] } });
   }
   function apply3D(animate = true) {
     const on = !!state.settings.map3d;
@@ -263,10 +265,14 @@
     pop.setDOMContent(div);
   }
 
+  const FLAG_SVG = '<svg viewBox="0 0 24 24"><path d="M6 21V4m0 0h11l-2 4 2 4H6"/></svg>';
+  const HOME_SVG = '<svg viewBox="0 0 24 24"><path d="M4 11 12 4l8 7M6 9.5V20h12V9.5"/></svg>';
   function markerEl(text, cls, onClick) {
     const el = document.createElement('div');
     el.className = `mk ${cls}`;
-    el.textContent = text;
+    if (cls === 'flag') el.innerHTML = FLAG_SVG;
+    else if (cls === 'depot') el.innerHTML = HOME_SVG;
+    else el.textContent = text;
     if (onClick) el.addEventListener('click', (ev) => { ev.stopPropagation(); onClick(); });
     return el;
   }
@@ -286,16 +292,17 @@
     const pts = [];
     const add = (p, el, title) => {
       el.title = title;
-      markers.push(new maplibregl.Marker({ element: el }).setLngLat([p.lon, p.lat]).addTo(map));
+      markers.push(new maplibregl.Marker({ element: el, anchor: 'bottom', offset: [0, -7] }).setLngLat([p.lon, p.lat]).addTo(map));
       pts.push([p.lon, p.lat]);
     };
-    if (state.start) add(state.start, markerEl('D', 'depot'), `Départ : ${state.start.label}`);
-    if (state.settings.endMode === 'address' && state.end) add(state.end, markerEl('A', 'depot'), `Arrivée : ${state.end.label}`);
+    const endFlag = state.settings.endMode === 'address' ? state.end : state.settings.endMode === 'start' ? state.start : null;
+    if (state.start && endFlag !== state.start) add(state.start, markerEl('', 'depot'), `Départ : ${state.start.label}`);
+    if (endFlag) add(endFlag, markerEl('', 'flag'), endFlag === state.start ? `Départ et arrivée : ${state.start.label}` : `Arrivée : ${endFlag.label}`);
     const cur = currentStop();
     for (const s of state.stops) {
       const n = orderNumber(s.id);
       const cls = s.status === 'done' ? 'done' : s.status === 'failed' ? 'failed' : cur && cur.id === s.id ? 'cur' : n ? '' : 'unordered';
-      add(s, markerEl(n || '•', cls, () => openStopDialog(s.id)), s.label);
+      add(s, markerEl(s.status === 'done' ? '✓' : n || '•', cls, () => openStopDialog(s.id)), s.label);
     }
     if (styleReady && map.getSource('route')) {
       const line = routeLineCoords();
@@ -316,9 +323,9 @@
     if (state.start) pts.push([state.start.lon, state.start.lat]);
     for (const s of state.stops) pts.push([s.lon, s.lat]);
     if (!pts.length) return;
-    if (pts.length === 1) { map.easeTo({ center: pts[0], zoom: 15, pitch: state.settings.map3d ? 55 : 0 }); return; }
+    if (pts.length === 1) { map.easeTo({ center: pts[0], zoom: 15, pitch: state.settings.map3d ? 55 : 0, padding: mapPadding() }); return; }
     const b = pts.reduce((bb, p) => bb.extend(p), new maplibregl.LngLatBounds(pts[0], pts[0]));
-    map.fitBounds(b, { padding: 50, maxZoom: 16, pitch: state.settings.map3d ? 45 : 0, duration: 600 });
+    map.fitBounds(b, { padding: mapPadding(), maxZoom: 16, pitch: state.settings.map3d ? 45 : 0, duration: 600 });
   }
   /** Mode tournée : la caméra se place sur l'arrêt en cours, orientée depuis l'arrêt précédent. */
   function focusCurrent(force) {
@@ -333,7 +340,7 @@
       const x = Math.cos(prev.lat * Math.PI / 180) * Math.sin(cur.lat * Math.PI / 180) - Math.sin(prev.lat * Math.PI / 180) * Math.cos(cur.lat * Math.PI / 180) * Math.cos((cur.lon - prev.lon) * Math.PI / 180);
       bearing = (Math.atan2(y, x) * 180) / Math.PI;
     }
-    map.easeTo({ center: [cur.lon, cur.lat], zoom: 16.5, pitch: state.settings.map3d ? 60 : 0, bearing, duration: 900 });
+    map.easeTo({ center: [cur.lon, cur.lat], zoom: 16.5, pitch: state.settings.map3d ? 60 : 0, bearing, duration: 900, padding: mapPadding() });
   }
   function previousPoint(id) {
     const r = state.route;
@@ -346,7 +353,7 @@
   // ---------- Gestion des arrêts ----------
   function newStop(p, extra = {}) {
     return {
-      id: uid(), label: p.label, lat: p.lat, lon: p.lon, note: extra.note || '', packages: extra.packages || 1, group: 1,
+      id: uid(), seq: (state.seq = (state.seq || 0) + 1), label: p.label, lat: p.lat, lon: p.lon, note: extra.note || '', packages: extra.packages || 1, group: 1,
       after: '', before: '', service: null, status: 'pending', check: !!extra.check,
     };
   }
@@ -611,7 +618,7 @@
   }
 
   // ---------- Rendu ----------
-  function stopMetaHTML(s, withEta) {
+  function stopMetaHTML(s, withEta, compact) {
     const bits = [];
     if (s.packages > 1) bits.push(`<span class="pill">${s.packages} colis</span>`);
     if (s.check) bits.push('<span class="pill window">Adresse à vérifier</span>');
@@ -621,9 +628,47 @@
     const eta = withEta && state.route ? state.route.etas[s.id] : null;
     if (eta != null && s.before && eta > toSec(s.before) && s.status === 'pending') bits.push('<span class="pill late">En retard</span>');
     if (s.status === 'failed') bits.push(`<span class="pill late">${esc(s.failReason || 'Échec')}</span>`);
-    if (s.status === 'done') bits.push('<span class="pill ok">Livré</span>');
+    if (s.status === 'done' && !compact) bits.push('<span class="pill ok">Livré</span>');
     if (s.note) bits.push(`<span class="meta-note">${esc(s.note)}</span>`);
     return bits.join('');
+  }
+
+  /** « Rue du Moulin 100, 6061 Charleroi » → rue « Rue du Moulin 100 », ville « Charleroi, 6061 ». */
+  function splitLabel(label) {
+    const s = String(label || '');
+    let street = s, rest = '';
+    const comma = s.indexOf(',');
+    if (comma > 0) { street = s.slice(0, comma); rest = s.slice(comma + 1).trim(); }
+    else {
+      const m = s.match(/^(.*?\D)\s+(\d{4,5}\s+[A-Za-zÀ-ÿ].*)$/);
+      if (m) { street = m[1]; rest = m[2]; }
+    }
+    const cm = rest.match(/^(\d{4,5})\s+(.+)$/);
+    const city = cm ? `${cm[2]}, ${cm[1]}` : rest;
+    return { street: street.trim(), city };
+  }
+  let listQuery = '';
+  function matchesQuery(s) {
+    if (!listQuery) return true;
+    const n = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    return n(`${s.label} ${s.note} ${s.seq}`).includes(n(listQuery));
+  }
+  const TICK = '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+  const CROSS = '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg>';
+  function rowHTML(s, num, opts = {}) {
+    const r = state.route;
+    const { street, city } = splitLabel(s.label);
+    const eta = r && r.etas[s.id] != null ? fmtClock(r.etas[s.id]) : '';
+    const meta = stopMetaHTML(s, true, true);
+    const badge = `<span class="id-badge">ID <b>${s.seq || ''}</b>${s.status === 'done' ? `<span class="tick">${TICK}</span>` : s.status === 'failed' ? `<span class="tick no">${CROSS}</span>` : ''}</span>`;
+    const right = opts.move
+      ? `<div class="move"><button type="button" aria-label="Monter" data-move="-1" data-id="${s.id}">▲</button><button type="button" aria-label="Descendre" data-move="1" data-id="${s.id}">▼</button></div>`
+      : opts.reset ? `<button class="btn link" type="button" data-act="reset" data-id="${s.id}">Rétablir</button>` : '';
+    return `<li class="row ${opts.current ? 'is-current' : ''} ${s.status !== 'pending' ? 'is-done' : ''}">
+      <div class="row-left"><span class="row-num">${num || '•'}</span>${eta ? `<span class="row-eta">${eta}</span>` : ''}</div>
+      <button type="button" class="row-main" data-edit="${s.id}"><span class="row-street">${esc(street)}</span>${city ? `<span class="row-city">${esc(city)}</span>` : ''}<span class="row-meta">${meta}</span></button>
+      <div class="row-right">${badge}${right}</div>
+    </li>`;
   }
 
   function renderPlan() {
@@ -635,16 +680,7 @@
     $('stopsTitle').textContent = state.stops.length ? `${plural(state.stops.length, 'arrêt')} · ${totalPk} colis` : 'Arrêts';
     $('stopsEmpty').hidden = state.stops.length > 0;
     $('clearAll').hidden = state.stops.length === 0;
-    $('stopList').innerHTML = ordered.map((s) => {
-      const n = orderNumber(s.id);
-      const cls = s.status !== 'pending' ? s.status : n ? '' : 'pending-unordered';
-      const eta = state.route && state.route.etas[s.id] != null ? `<div class="eta">${fmtClock(state.route.etas[s.id])}<small>prévu</small></div>` : '<div></div>';
-      return `<li class="stop">
-        <span class="num ${cls}">${n || '•'}</span>
-        <button type="button" class="stop-main" data-edit="${s.id}"><span class="stop-addr">${esc(s.label)}</span><span class="stop-meta">${stopMetaHTML(s, true)}</span></button>
-        ${eta}
-      </li>`;
-    }).join('');
+    $('stopList').innerHTML = ordered.filter(matchesQuery).map((s) => rowHTML(s, orderNumber(s.id))).join('');
     const sum = $('routeSummary');
     const btn = $('optimizeBtn');
     if (!optimizing) btn.textContent = state.route ? 'Réoptimiser la tournée' : 'Optimiser la tournée';
@@ -674,6 +710,7 @@
       card.innerHTML = `<div class="card"><div class="card-addr">Pas encore de tournée</div><div class="card-sub">Scannez votre manifeste ou ajoutez vos adresses dans Préparer, puis touchez Optimiser.</div><button class="btn primary" type="button" data-go="plan">Préparer la tournée</button></div>`;
       $('runList').innerHTML = '';
       $('finishBox').hidden = true;
+      $('finishBar').hidden = true;
       return;
     }
     const lf = liveFinish();
@@ -693,7 +730,7 @@
       const nextHint = state.settings.autoNav && nx ? `<small>puis ${esc(navName())} vers le n° ${orderNumber(nx.id)}</small>` : '';
       card.innerHTML = `<div class="card">
         <div class="card-top"><span class="num">${n}</span>
-          <div class="card-text"><div class="card-addr">${esc(cur.label)}</div>
+          <div class="card-text"><div class="card-addr">${esc(splitLabel(cur.label).street)}</div><div class="card-sub">${esc(splitLabel(cur.label).city)}</div>
           <div class="card-sub">Arrivée prévue ${fmtClock(eta)} · ${cur.packages} colis${cur.before ? ' · avant ' + cur.before : ''}${cur.after ? ' · après ' + cur.after : ''}</div></div></div>
         ${cur.note ? `<div class="card-note">${esc(cur.note)}</div>` : ''}
         ${cur.check ? '<div class="card-note">Adresse lue sur photo : vérifiez-la sur place.</div>' : ''}
@@ -709,19 +746,12 @@
       card.innerHTML = `<div class="card done-card"><div class="big-num">${done}/${total}</div><div class="card-addr">Tournée terminée</div><div class="card-sub">${failed ? `${plural(failed, 'colis')} à rapporter.` : 'Tous les colis sont livrés.'}</div></div>`;
     }
     $('runList').innerHTML = r.order.map((id, k) => {
-      const s = stopById(id); if (!s) return '';
+      const s = stopById(id);
+      if (!s || !matchesQuery(s)) return '';
       const isCur = cur && cur.id === id;
-      const cls = s.status !== 'pending' ? s.status : '';
-      const canMove = s.status === 'pending' && !isCur;
-      const side = canMove
-        ? `<div class="move"><button type="button" aria-label="Monter" data-move="-1" data-id="${id}">▲</button><button type="button" aria-label="Descendre" data-move="1" data-id="${id}">▼</button></div>`
-        : s.status !== 'pending' ? `<button class="btn link" type="button" data-act="reset" data-id="${id}">Rétablir</button>` : '<div></div>';
-      return `<li class="stop ${isCur ? 'is-current' : ''} ${s.status !== 'pending' ? 'is-done' : ''}">
-        <span class="num ${cls}">${k + 1}</span>
-        <button type="button" class="stop-main" data-edit="${s.id}"><span class="stop-addr">${esc(s.label)}</span><span class="stop-meta">${s.status === 'pending' ? `<span>${fmtClock(r.etas[id])}</span>` : ''}${stopMetaHTML(s, true)}</span></button>
-        ${side}
-      </li>`;
+      return rowHTML(s, k + 1, { current: isCur, move: s.status === 'pending' && !isCur, reset: s.status !== 'pending' });
     }).join('');
+    $('finishBar').hidden = currentView !== 'run';
   }
 
   function renderTop() {
@@ -729,9 +759,11 @@
     const remaining = state.stops.filter((s) => s.status === 'pending').length;
     if (r) {
       const lf = liveFinish();
-      $('topStats').innerHTML = `<span><b>${remaining}</b>restants</span><span><b>${fmtKm(r.distance)}</b></span><span class="top-end"><b>${fmtClock(lf.end)}</b>fin</span>`;
+      $('topStats').innerHTML = remaining
+        ? `<b>${plural(remaining, 'arrêt')}</b> à faire · fin <b>${fmtClock(lf.end)}</b> · ${fmtKm(r.distance)}`
+        : '<b>0 arrêt</b> à faire';
     } else {
-      $('topStats').innerHTML = `<span><b>${state.stops.length}</b>arrêts</span>`;
+      $('topStats').innerHTML = state.stops.length ? `<b>${plural(state.stops.length, 'arrêt')}</b> à optimiser` : '<b>0 arrêt</b>';
     }
   }
 
@@ -757,9 +789,8 @@
   let currentView = 'plan';
   function switchView(v) {
     currentView = v;
-    document.querySelectorAll('.tab').forEach((t) => t.setAttribute('aria-selected', String(t.dataset.view === v)));
     for (const name of ['plan', 'run', 'settings']) $(`view-${name}`).hidden = name !== v;
-    if (map) setTimeout(() => map.resize(), 50);
+    $('finishBar').hidden = !(v === 'run' && state.route);
     if (v === 'run') focusCurrent(true);
   }
 
@@ -1124,8 +1155,104 @@
   });
   $('scanClose').addEventListener('click', () => $('scanDialog').close());
 
+  // ---------- Panneau qu'on tire (3 hauteurs) ----------
+  const SNAPS = [0.24, 0.52, 0.9];
+  let sheetFrac = 0.52;
+  const wideScreen = () => window.matchMedia('(min-width: 900px)').matches;
+  function sheetHeight() { return wideScreen() ? 0 : Math.round(window.innerHeight * sheetFrac); }
+  function mapPadding() {
+    return wideScreen()
+      ? { top: 70, bottom: 40, left: 450, right: 80 }
+      : { top: 80, left: 30, right: 80, bottom: Math.min(sheetHeight(), window.innerHeight * 0.6) + 20 };
+  }
+  function setSheet(frac) {
+    sheetFrac = frac;
+    $('app').style.setProperty('--sheet-h', `${sheetHeight()}px`);
+    $('app').classList.toggle('sheet-full', !wideScreen() && frac > 0.8);
+  }
+  (function sheetDrag() {
+    let startY = 0, startH = 0, dragging = false, moved = false;
+    const down = (e) => {
+      if (wideScreen() || e.target.closest('button, input')) return;
+      dragging = true; moved = false; startY = e.clientY; startH = sheetHeight();
+      $('app').classList.add('dragging');
+      e.currentTarget.setPointerCapture(e.pointerId);
+    };
+    const move = (e) => {
+      if (!dragging) return;
+      const h = Math.max(window.innerHeight * 0.15, Math.min(window.innerHeight * 0.94, startH - (e.clientY - startY)));
+      if (Math.abs(e.clientY - startY) > 4) moved = true;
+      $('app').style.setProperty('--sheet-h', `${h}px`);
+    };
+    const up = (e) => {
+      if (!dragging) return;
+      dragging = false;
+      $('app').classList.remove('dragging');
+      const h = parseFloat(getComputedStyle($('app')).getPropertyValue('--sheet-h')) / window.innerHeight;
+      let next;
+      if (!moved) next = SNAPS[(SNAPS.indexOf(sheetFrac) + 1) % SNAPS.length]; // simple appui : hauteur suivante
+      else next = SNAPS.reduce((a, b) => (Math.abs(b - h) < Math.abs(a - h) ? b : a));
+      setSheet(next);
+      void e;
+    };
+    for (const el of [$('sheetGrip'), $('sheetHeader')]) {
+      el.addEventListener('pointerdown', down);
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    }
+    window.addEventListener('resize', () => setSheet(sheetFrac));
+  })();
+
+  // ---------- Menu ----------
+  function toggleMenu(show) {
+    const pop = $('menuPop');
+    pop.hidden = show === undefined ? !pop.hidden : !show;
+    if (!pop.hidden) pop.querySelector('button').focus();
+  }
+  $('menuBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+  $('moreBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+  document.addEventListener('click', (e) => { if (!$('menuPop').hidden && !e.target.closest('#menuPop')) toggleMenu(false); });
+  $('menuPop').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-menu]'); if (!b) return;
+    toggleMenu(false);
+    const m = b.dataset.menu;
+    if (m === 'plan' || m === 'run' || m === 'settings') { switchView(m); if (sheetFrac < 0.5) setSheet(0.52); }
+    else if (m === 'scan') openScan();
+    else if (m === 'reopt') $('reoptHere').click();
+    else if (m === 'export') $('exportCsv').click();
+  });
+  $('settingsDone').addEventListener('click', () => switchView(state.route ? 'run' : 'plan'));
+
+  // ---------- Recherche dans la liste ----------
+  $('searchToggle').addEventListener('click', () => {
+    const w = $('listSearchWrap');
+    w.hidden = !w.hidden;
+    if (w.hidden) { listQuery = ''; $('listSearch').value = ''; renderPlan(); renderRun(); }
+    else { if (sheetFrac < 0.5) setSheet(0.9); $('listSearch').focus(); }
+  });
+  $('listSearch').addEventListener('input', (e) => { listQuery = e.target.value.trim(); renderPlan(); renderRun(); });
+
+  // ---------- Fin de tournée ----------
+  $('finishRoute').addEventListener('click', () => {
+    const done = state.stops.filter((s) => s.status === 'done').length;
+    const failed = state.stops.filter((s) => s.status === 'failed').length;
+    const left = state.stops.length - done - failed;
+    $('endSummary').textContent = `${done} livré${done > 1 ? 's' : ''}, ${failed} échec${failed > 1 ? 's' : ''}${left ? `, ${left} arrêt${left > 1 ? 's' : ''} pas encore fait${left > 1 ? 's' : ''}` : ''}. Exportez le bilan avant d'effacer la tournée.`;
+    $('endDialog').showModal();
+  });
+  $('endExport').addEventListener('click', () => $('exportCsv').click());
+  $('endDialog').addEventListener('close', () => {
+    if ($('endDialog').returnValue !== 'new') return;
+    const backup = JSON.stringify(state);
+    state.stops = []; state.route = null; state.found = [];
+    lastBoundsKey = '';
+    renderAll();
+    switchView('plan');
+    toast('Nouvelle tournée prête.', () => { state = JSON.parse(backup); renderAll(); switchView('run'); });
+  });
+
   // ---------- Événements ----------
-  document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => switchView(t.dataset.view)));
 
   attachSearch($('startInput'), $('startSuggest'), setStart);
   attachSearch($('stopInput'), $('stopSuggest'), (it) => { addStop(it); $('stopInput').value = ''; });
@@ -1247,6 +1374,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state.route) { renderTop(); renderRun(); } });
 
   // ---------- Démarrage ----------
+  setSheet(sheetFrac);
   initMap();
   renderSettings();
   renderAll();

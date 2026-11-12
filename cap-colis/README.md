@@ -18,6 +18,8 @@ Application de tournée pour livreur de colis, pensée pour l'iPhone (testée au
 - Heure de fin affichée en grand et recalculée en direct pendant la tournée, à partir de l'heure qu'il est et des arrêts restants.
 
 **Livrer**
+- Écran de tournée : carte plein écran, liste des arrêts qu'on tire vers le haut (3 hauteurs). Chaque ligne affiche le numéro de passage, l'heure prévue, la rue, la ville et l'identifiant du colis, coché une fois livré.
+- « Marquer le trajet comme terminé » : bilan, export, puis nouvelle tournée.
 - Bouton « Y aller avec Waze » : Waze s'ouvre sur l'arrêt, avec ses alertes radars et trafic.
 - Quand vous touchez « Livré », Waze s'ouvre sur l'arrêt suivant. Vous pouvez couper ce réglage.
 - Échec avec motif, report en fin de tournée, annulation, réoptimisation depuis votre position.

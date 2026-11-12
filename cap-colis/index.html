@@ -21,29 +21,27 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app">
-  <header class="topbar">
-    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Cap Colis</div>
-    <div class="topbar-stats" id="topStats" aria-live="polite"></div>
-  </header>
-
-  <div class="map-wrap">
-    <div id="map" class="map" role="region" aria-label="Carte de la tournée"></div>
-    <div class="map-tools">
-      <button class="map-btn" id="btn3d" type="button">2D</button>
-      <button class="map-btn" id="btnFit" type="button" aria-label="Voir toute la tournée">Tout</button>
-    </div>
+<div class="app" id="app">
+  <div id="map" class="map" role="region" aria-label="Carte de la tournée"></div>
+  <button class="fab fab-menu" id="menuBtn" type="button" aria-label="Menu" aria-haspopup="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <div class="fab-col">
+    <button class="fab" id="btn3d" type="button">2D</button>
+    <button class="fab" id="btnFit" type="button" aria-label="Voir toute la tournée"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
   </div>
 
-  <section class="panel">
-    <nav class="tabs" role="tablist">
-      <button role="tab" id="tab-plan" class="tab" aria-selected="true" data-view="plan">Préparer</button>
-      <button role="tab" id="tab-run" class="tab" aria-selected="false" data-view="run">Tournée</button>
-      <button role="tab" id="tab-settings" class="tab" aria-selected="false" data-view="settings">Réglages</button>
-    </nav>
+  <section class="sheet" id="sheet" aria-label="Arrêts de la tournée">
+    <div class="sheet-grip" id="sheetGrip" aria-hidden="true"><span></span></div>
+    <header class="sheet-header" id="sheetHeader">
+      <div class="sheet-title" id="topStats" aria-live="polite"></div>
+      <button class="icon-btn flat" id="searchToggle" type="button" aria-label="Rechercher un arrêt"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg></button>
+      <button class="icon-btn flat" id="moreBtn" type="button" aria-label="Plus d'options" aria-haspopup="true"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg></button>
+    </header>
+    <div class="list-search" id="listSearchWrap" hidden>
+      <input id="listSearch" type="search" autocomplete="off" placeholder="Rue, nom, ville…" aria-label="Rechercher un arrêt">
+    </div>
 
     <!-- PRÉPARER -->
-    <div class="view" id="view-plan" role="tabpanel" aria-labelledby="tab-plan">
+    <div class="view" id="view-plan">
       <button class="scan-cta" id="scanOpen" type="button">
         <span class="scan-icon" aria-hidden="true"></span>
         <span><b>Scanner le manifeste</b><br><small>Photos du manifeste ou des étiquettes, autant qu'il en faut</small></span>
@@ -82,7 +80,7 @@
     </div>
 
     <!-- TOURNÉE -->
-    <div class="view" id="view-run" role="tabpanel" aria-labelledby="tab-run" hidden>
+    <div class="view" id="view-run" hidden>
       <div class="finish" id="finishBox" hidden>
         <span class="finish-label">Fin estimée</span>
         <span class="finish-time" id="finishTime">–</span>
@@ -91,7 +89,7 @@
       <div class="progress" aria-hidden="true"><div class="progress-bar" id="progressBar"></div></div>
       <div class="progress-text" id="progressText"></div>
       <div id="currentCard"></div>
-      <h2 class="sub">Ordre de passage</h2>
+
       <ol class="run-list" id="runList"></ol>
       <div class="row-actions">
         <button class="btn ghost" id="reoptHere" type="button">Réoptimiser depuis ma position</button>
@@ -100,7 +98,11 @@
     </div>
 
     <!-- RÉGLAGES -->
-    <div class="view" id="view-settings" role="tabpanel" aria-labelledby="tab-settings" hidden>
+    <div class="view" id="view-settings" hidden>
+      <div class="list-head">
+        <h2>Réglages</h2>
+        <button class="btn link" id="settingsDone" type="button">Terminé</button>
+      </div>
       <div class="field">
         <span class="label">Navigation</span>
         <div class="seg" role="radiogroup" aria-label="Application de navigation">
@@ -152,11 +154,37 @@
       </div>
       <button class="btn ghost" id="loadDemo" type="button">Charger une tournée d'exemple (Charleroi)</button>
     </div>
+
+    <footer class="sheet-bar" id="finishBar" hidden>
+      <button class="btn outline wide" id="finishRoute" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12.5 5 5L20 7"/></svg>Marquer le trajet comme terminé</button>
+    </footer>
   </section>
 </div>
 
+<div class="menu-pop" id="menuPop" role="menu" hidden>
+  <button type="button" role="menuitem" data-menu="plan">Préparer la tournée</button>
+  <button type="button" role="menuitem" data-menu="run">Tournée en cours</button>
+  <button type="button" role="menuitem" data-menu="scan">Scanner le manifeste</button>
+  <button type="button" role="menuitem" data-menu="reopt">Réoptimiser depuis ma position</button>
+  <button type="button" role="menuitem" data-menu="export">Exporter le bilan</button>
+  <button type="button" role="menuitem" data-menu="settings">Réglages</button>
+</div>
+
+<!-- Fin de tournée -->
+<dialog id="endDialog" class="dialog">
+  <form method="dialog">
+    <h2>Terminer la tournée</h2>
+    <p id="endSummary"></p>
+    <div class="dialog-col">
+      <button class="btn primary" type="button" id="endExport">Exporter le bilan</button>
+      <button class="btn danger-fill" value="new">Nouvelle tournée (efface les arrêts)</button>
+      <button class="btn ghost" value="cancel">Continuer la tournée</button>
+    </div>
+  </form>
+</dialog>
+
 <!-- Scan du manifeste -->
-<dialog id="scanDialog" class="dialog sheet" aria-labelledby="scanTitle">
+<dialog id="scanDialog" class="dialog fullsheet" aria-labelledby="scanTitle">
   <div class="sheet-body">
     <div class="sheet-head">
       <h2 id="scanTitle">Scanner la tournée</h2>
