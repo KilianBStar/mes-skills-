@@ -1354,6 +1354,15 @@
     } finally {
       ocrBusy = false;
     }
+    if (autoAdd && !scanQueue.some((q) => ['waiting', 'prep', 'reading'].includes(q.status))) {
+      autoAdd = false;
+      if (state.found.some((f) => f.checked && f.address)) addFoundToTour();
+      else {
+        $('scanResult').hidden = false;
+        $('scanOptimize').hidden = true;
+        $('scanResultText').textContent = 'Aucune adresse lue sur ces photos. Reprenez-les plus près de l\'écran, sans reflet.';
+      }
+    }
   }
 
   function queueFiles(files) {
@@ -1400,7 +1409,7 @@
     $('scanAdd').disabled = !checked || geocodingFound;
     $('scanClearFound').hidden = !f.length;
   }
-  function renderScan() { renderQueue(); renderFound(); if (!$('live').hidden) updateLiveCount(); }
+  function renderScan() { renderQueue(); renderFound(); }
 
   $('foundList').addEventListener('change', (e) => {
     const li = e.target.closest('[data-fid]'); if (!li) return;
@@ -1513,8 +1522,10 @@
   $('libBtn').addEventListener('click', () => $('libInput').click());
   $('oneBtn').addEventListener('click', () => $('oneInput').click());
 
-  // Scanner en direct avec la caméra (pas de galerie : rien ne bloque)
+  // Caméra dans l'app : on prend toutes les photos, puis on envoie tout en une fois (pas de galerie iOS)
   let liveStream = null;
+  let shots = []; // { file, thumb }
+  let autoAdd = false;
   async function openLive() {
     try {
       liveStream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1440 } } });
@@ -1522,11 +1533,12 @@
       toast('Caméra refusée. Réglages > Safari > Caméra : Autoriser, puis réessayez.');
       return;
     }
+    shots = [];
     const v = $('liveVideo');
     v.srcObject = liveStream;
     $('live').hidden = false;
     try { await v.play(); } catch (e) { /* lecture auto */ }
-    updateLiveCount();
+    renderShots();
   }
   function closeLive() {
     if (liveStream) liveStream.getTracks().forEach((t) => t.stop());
@@ -1534,22 +1546,43 @@
     $('liveVideo').srcObject = null;
     $('live').hidden = true;
   }
-  function updateLiveCount() {
-    const busy = scanQueue.filter((q) => ['waiting', 'prep', 'reading'].includes(q.status)).length;
-    const n = state.found.length;
-    $('liveCount').textContent = `${plural(scanQueue.length, 'capture')} · ${plural(n, 'adresse')}${busy ? ` · lecture de ${busy}…` : ''}`;
+  function renderShots() {
+    $('liveStrip').innerHTML = shots.map((s, i) => `<button type="button" class="shot" data-shot="${i}" aria-label="Retirer la photo ${i + 1}"><img src="${s.thumb}" alt=""><span>×</span></button>`).join('');
+    $('liveStrip').scrollLeft = 1e6;
+    $('liveSend').disabled = !shots.length;
+    $('liveSend').textContent = shots.length ? `Envoyer ${plural(shots.length, 'photo')}` : 'Envoyer';
+    $('liveCount').textContent = shots.length ? `${plural(shots.length, 'photo')} · faites défiler et continuez` : 'Photographiez chaque écran, puis Envoyer';
   }
   $('liveBtn').addEventListener('click', openLive);
-  $('liveDone').addEventListener('click', closeLive);
+  $('liveDone').addEventListener('click', () => { shots = []; closeLive(); });
+  $('liveStrip').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-shot]'); if (!b) return;
+    shots.splice(+b.dataset.shot, 1); renderShots();
+  });
   $('liveShot').addEventListener('click', () => {
     const v = $('liveVideo');
     if (!v.videoWidth) return;
     const c = document.createElement('canvas');
     c.width = v.videoWidth; c.height = v.videoHeight;
     c.getContext('2d').drawImage(v, 0, 0);
+    const t = document.createElement('canvas');
+    t.height = 72; t.width = Math.round((72 * c.width) / c.height);
+    t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+    const thumb = t.toDataURL('image/jpeg', 0.6);
     $('live').classList.remove('flash'); void $('live').offsetWidth; $('live').classList.add('flash');
     if (navigator.vibrate) navigator.vibrate(30);
-    c.toBlob((b) => { if (b) { queueFiles([new File([b], `camera-${Date.now()}.jpg`, { type: 'image/jpeg' })]); updateLiveCount(); } }, 'image/jpeg', 0.92);
+    c.toBlob((b) => { if (b) { shots.push({ file: new File([b], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' }), thumb }); renderShots(); } }, 'image/jpeg', 0.92);
+  });
+  // Envoyer : tout est lu, puis les adresses sont ajoutées à la tournée sans autre geste
+  $('liveSend').addEventListener('click', () => {
+    if (!shots.length) return;
+    const files = shots.map((s) => s.file);
+    shots = [];
+    closeLive();
+    autoAdd = true;
+    $('scanResult').hidden = true;
+    queueFiles(files);
+    toast(`${plural(files.length, 'photo')} envoyée${files.length > 1 ? 's' : ''}. Lecture puis ajout à la tournée…`);
   });
   // Coller des captures (contourne le sélecteur de photos iOS qui reste bloqué dans les apps d'écran d'accueil)
   const zone = $('pasteZone');

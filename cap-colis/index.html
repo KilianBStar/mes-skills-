@@ -409,11 +409,12 @@
 <div class="live" id="live" hidden>
   <video id="liveVideo" playsinline muted autoplay></video>
   <div class="live-frame" aria-hidden="true"></div>
-  <div class="live-top"><span id="liveCount">Visez l'écran du Honeywell</span></div>
+  <div class="live-top"><span id="liveCount">Photographiez chaque écran, puis Envoyer</span></div>
+  <div class="live-strip" id="liveStrip"></div>
   <div class="live-bar">
-    <button class="btn ghost live-done" id="liveDone" type="button">Terminer</button>
-    <button class="shutter" id="liveShot" type="button" aria-label="Capturer"></button>
-    <span class="live-hint">Faites défiler puis capturez l'écran suivant</span>
+    <button class="btn ghost live-done" id="liveDone" type="button">Annuler</button>
+    <button class="shutter" id="liveShot" type="button" aria-label="Prendre la photo"></button>
+    <button class="btn primary live-send" id="liveSend" type="button" disabled>Envoyer</button>
   </div>
 </div>
 <input class="vh" id="camInput" type="file" accept="image/*" capture="environment" aria-hidden="true" tabindex="-1">
