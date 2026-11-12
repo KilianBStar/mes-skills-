@@ -362,6 +362,27 @@
     }
     applySatellite();
   }
+  /**
+   * Vue de la maison : photo aérienne de près (3 × 3 tuiles au zoom 18, ~60 cm par pixel),
+   * centrée sur l'adresse, avec un repère. Belgique : NGI ; ailleurs : IGN.
+   */
+  function houseView(stop, cls = '') {
+    const z = 18, n = 2 ** z;
+    const inBE = stop.lon > 2.38 && stop.lon < 6.45 && stop.lat > 49.45 && stop.lat < 51.56 && !(stop.lat < 50.1 && stop.lon < 4.1);
+    const tpl = inBE ? SAT.be.tiles[0] : SAT.fr.tiles[0];
+    const xf = ((stop.lon + 180) / 360) * n;
+    const r = (stop.lat * Math.PI) / 180;
+    const yf = ((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2) * n;
+    const x0 = Math.floor(xf) - 1, y0 = Math.floor(yf) - 1;
+    const px = (xf - x0) * 256, py = (yf - y0) * 256; // position de l'adresse dans la mosaïque 768 × 768
+    let imgs = '';
+    for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) {
+      const url = tpl.replace('{z}', z).replace('{x}', x0 + i).replace('{y}', y0 + j);
+      imgs += `<img src="${url}" alt="" loading="lazy" style="left:${i * 256}px;top:${j * 256}px" onerror="this.style.visibility='hidden'">`;
+    }
+    return `<div class="house ${cls}" role="img" aria-label="Vue aérienne de l'adresse"><div class="house-tiles" style="--px:${px.toFixed(1)}px;--py:${py.toFixed(1)}px">${imgs}</div><span class="house-pin"></span><span class="house-src">${inBE ? '© NGI' : '© IGN'}</span></div>`;
+  }
+
   function applySatellite() {
     const on = !!state.settings.satellite;
     $('btnSat').textContent = on ? 'Plan' : 'Sat.';
@@ -882,6 +903,7 @@
         <div class="card-top"><span class="num">${n}</span>
           <div class="card-text"><div class="card-addr">${esc(splitLabel(cur.label).street)}</div><div class="card-sub">${esc(splitLabel(cur.label).city)}</div>
           <div class="card-sub">Arrivée prévue ${fmtClock(eta)} · ${cur.packages} colis${cur.before ? ' · avant ' + cur.before : ''}${cur.after ? ' · après ' + cur.after : ''}</div></div></div>
+        ${houseView(cur)}
         ${cur.note ? `<div class="card-note">${esc(cur.note)}</div>` : ''}
         ${cur.check ? '<div class="card-note">Adresse lue sur photo : vérifiez-la sur place.</div>' : ''}
         <div class="card-actions">
@@ -953,6 +975,7 @@
     const n = orderNumber(id);
     $('stopDialogTitle').textContent = n ? `Arrêt n° ${n}` : 'Arrêt';
     $('stopDialogAddr').textContent = s.label;
+    $('stopHouse').innerHTML = houseView(s);
     $('fNote').value = s.note || '';
     $('fPackages').value = s.packages || 1;
     $('fService').value = s.service ?? '';
@@ -1883,8 +1906,10 @@
     showMe(pos, brg, interval);
     if (nav.follow && map && !document.hidden) {
       // caméra au même rythme que la flèche (mouvement linéaire) : la flèche reste fixe à l'écran
+      const near = toStop < 150;
       map.easeTo({
-        center: [pos.lon, pos.lat], bearing: brg, pitch: state.settings.map3d ? 60 : 40, zoom: speed > 14 ? 16 : 17,
+        center: near ? [(pos.lon + nav.stop.lon) / 2, (pos.lat + nav.stop.lat) / 2] : [pos.lon, pos.lat], bearing: brg,
+        pitch: near ? 25 : state.settings.map3d ? 60 : 40, zoom: near ? 18.6 : speed > 14 ? 16 : 17,
         duration: interval || 600, easing: (t) => t, padding: { top: 190, bottom: 160, left: 0, right: 0 },
       });
     }
@@ -1929,6 +1954,7 @@
     const s = nav.stop;
     $('navArrAddr').textContent = s.label;
     $('navArrNote').textContent = [s.packages > 1 ? `${s.packages} colis` : '', s.note].filter(Boolean).join(' · ');
+    $('navHouse').innerHTML = houseView(s, 'big');
     const nx = nextAfter(s.id);
     $('navDone').innerHTML = `Livré${state.settings.autoNav && nx ? `<small>puis guidage vers le n° ${orderNumber(nx.id)}</small>` : ''}`;
   }

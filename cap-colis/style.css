@@ -466,3 +466,12 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .scan-count { margin: 0; font-size: .95rem; font-weight: 500; color: var(--ink); }
 .scan-count:empty { display: none; }
 .nav-panel .nav-btn { padding: 0 10px; }
+
+/* Vue de la maison (photo aérienne de près) */
+.house { position: relative; height: 150px; border-radius: 12px; overflow: hidden; background: var(--line); }
+.house.big { height: 190px; }
+.house-tiles { position: absolute; width: 768px; height: 768px; left: 50%; top: 50%; transform: translate(calc(-1 * var(--px)), calc(-1 * var(--py))) scale(1.35); transform-origin: var(--px) var(--py); }
+.house-tiles img { position: absolute; width: 256px; height: 256px; max-width: none; }
+.house-pin { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #1E62D6; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(30, 98, 214, .35), 0 2px 6px rgba(0, 0, 0, .5); }
+.house-src { position: absolute; right: 6px; bottom: 4px; font-size: 10px; color: #fff; text-shadow: 0 1px 2px #000; }
+.card .house { height: 120px; }
