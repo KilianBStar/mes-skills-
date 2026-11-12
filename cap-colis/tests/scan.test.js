@@ -8,7 +8,7 @@ test('étiquette colis sur plusieurs lignes', () => {
   const r = S.extractAddresses(`DESTINATAIRE :\nMme Claire MARTIN\n12 rue Mercière\nBât B, 3e étage\n69002 LYON\nFRANCE\nTél : 06 12 34 56 78\nPoids 1,2 kg`);
   assert.strictEqual(r.length, 1);
   assert.strictEqual(r[0].address, '12 rue Mercière, 69002 LYON');
-  assert.match(r[0].note, /Claire MARTIN/);
+  assert.strictEqual(r[0].name, 'Mme Claire MARTIN');
   assert.match(r[0].note, /Bât B/);
   assert.match(r[0].note, /06 12 34 56 78/);
   assert.ok(r[0].sure);
@@ -20,7 +20,7 @@ test('manifeste en tableau, une ligne par colis', () => {
     '12 rue Mercière, 69002 LYON', '45 avenue Jean Jaurès, 69007 Lyon',
     '3 bis bd de la Croix-Rousse, 69004 LYON', '8 place Guichard, 69003 LYON',
   ]);
-  assert.match(S.extractAddresses(t)[0].note, /DUPONT Jean/);
+  assert.strictEqual(S.extractAddresses(t)[0].name, 'DUPONT Jean');
 });
 
 test('erreurs OCR dans le code postal', () => {
@@ -53,7 +53,8 @@ test('manifeste lu par OCR : le téléphone reste sur sa ligne', () => {
   const t = `1 DUPONT Jean 12 rue Mercière 69002 LYON 2 06 12 34 56 78\n2 BERNARD Ali 45 avenue Jean Jaurès 69007 LYON 1 107 81 22 10 45\nGARCIA Inès rue de Créqui 69006 LYON 1`;
   const r = S.extractAddresses(t);
   assert.strictEqual(r.length, 3);
-  assert.strictEqual(r[1].note, 'BERNARD Ali · Tél. 07 81 22 10 45');
+  assert.strictEqual(r[1].name, 'BERNARD Ali');
+  assert.strictEqual(r[1].note, 'Tél. 07 81 22 10 45');
   assert.strictEqual(r[2].sure, false, 'rue sans numéro à vérifier');
 });
 
@@ -88,7 +89,7 @@ test('liste de tournée du terminal (Belgique)', () => {
   const t = `TOTAL P1 RELAIS LOCKER COLLECTE\nCHARGÉS 156 156 19 0\nMARC DURAND\nRUE DES ÉRABLES 22\n6061 MONTIGNIES-SUR-SAMBRE\nNombre de colis : 1\nType : DOMICILE\nLINA PEETERS\nRUE DU MOULIN 52\n6061 CHARLEROI\nNombre de colis : 2\nType : DOMICILE\nINCONNU\n6061 MONTIGNIES-SUR-SAMBRE\nNombre de colis : 1\nType : DOMICILE`;
   const r = S.extractAddresses(t);
   assert.deepStrictEqual(r.map((x) => x.address), ['RUE DES ÉRABLES 22, 6061 MONTIGNIES-SUR-SAMBRE', 'RUE DU MOULIN 52, 6061 CHARLEROI', '6061 MONTIGNIES-SUR-SAMBRE']);
-  assert.strictEqual(r[0].note, 'MARC DURAND');
+  assert.strictEqual(r[0].name, 'Marc Durand');
   assert.strictEqual(r[1].packages, 2);
   assert.strictEqual(r[1].country, 'BE');
   assert.ok(r[0].sure);
@@ -99,7 +100,7 @@ test('étiquette Amazon : ville avant le code postal, expéditeur ignoré', () =
   const t = `colis privé SAME\n40 6060\nAmazon Returns\nSchoondonkweg 4\nWillebroek Belgium 2830\nBelgium\nSHIP TO:\nMARTIN\nRue de la Gare 2\nChâtelineau 6200\nBelgium\n04/11/2026\n780018700000B6200`;
   const r = S.extractAddresses(t);
   assert.deepStrictEqual(r.map((x) => x.address), ['Rue de la Gare 2, 6200 Châtelineau']);
-  assert.strictEqual(r[0].note, 'MARTIN');
+  assert.strictEqual(r[0].name, 'Martin');
 });
 
 test('numéro avec boîte et virgule (25/1/1, 27/6)', () => {
@@ -116,7 +117,7 @@ test('étiquette 24H domicile : code de tri « 40 6040 NEXT » ignoré', () => {
   const t = `Expéditeur :\nATLAS (QM05)\n33 BD DE LA HAIE\n35136 ST JACQUES DE LA LANDE\nBE 40 6040 NEXT\nPAUL LEROY\n43 RUE DES ÉCOLES\n6142 LEERNES\nBELGIQUE\nTEL : 0485000000\nRéf : 7035407001\nPoids : 1044 grs\nEditée le : 27/10/2026`;
   const r = S.extractAddresses(t);
   assert.deepStrictEqual(r.map((x) => x.address), ['43 RUE DES ÉCOLES, 6142 LEERNES']);
-  assert.match(r[0].note, /PAUL LEROY/);
+  assert.strictEqual(r[0].name, 'Paul Leroy');
 });
 
 test('code postal répété autour de la ville (6142 leernes 6142)', () => {
@@ -153,4 +154,17 @@ test('rue en un mot avec tiret (Grand-Rue)', () => {
   const r = S.extractAddresses('HUGO MAES\nGRAND-RUE 54\n6200 CHATELET\nNombre de colis : 1');
   assert.strictEqual(r[0].address, 'GRAND-RUE 54, 6200 CHATELET');
   assert.ok(r[0].sure && !r[0].incomplete);
+});
+
+test('liste façon Spoke : rang, heure, « ID », province', () => {
+  const t = `03\n14:25\nRue de Gilly 491\nChâtelet, Hainaut, 6200\nID 3\n04 14:27 Rue du Corbeau 160 ID 4\nChâtelet, Hainaut, 6200`;
+  const r = S.extractAddresses(t);
+  assert.deepStrictEqual(r.map((x) => x.address), ['Rue de Gilly 491, 6200 Châtelet', 'Rue du Corbeau 160, 6200 Châtelet']);
+  assert.ok(r.every((x) => x.sure && !x.name));
+});
+
+test('nom et prénom à part, en clair', () => {
+  const r = S.extractAddresses('JEROME HUBERT\nRUE DE LA REMISE 22\n6061 MONTIGNIES-SUR-SAMBRE\nNombre de colis : 1');
+  assert.strictEqual(r[0].name, 'Jerome Hubert');
+  assert.strictEqual(r[0].note, '');
 });

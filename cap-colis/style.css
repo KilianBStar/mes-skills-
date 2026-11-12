@@ -497,3 +497,10 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .trip-ends .btn.link { margin-left: auto; flex: none; }
 .nav-panel.arrived.home #navFail, .nav-panel.arrived.home #navSkip { display: none; }
 .nav-panel.arrived.home .nav-arr-actions { grid-template-columns: 1fr; }
+
+/* Destinataire en légende */
+.row-name, .card-name, .f-name { display: flex; align-items: center; gap: 6px; color: var(--ink); font-size: .95rem; }
+.row-name svg, .card-name svg, .f-name svg { width: 16px; height: 16px; flex: none; color: var(--accent); stroke-width: 2.2; }
+.row-name { margin-top: 2px; opacity: .9; }
+.card-name { font-size: 1.05rem; margin-top: 4px; }
+.f-name { font-size: .9rem; color: var(--muted); }

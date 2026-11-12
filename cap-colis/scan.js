@@ -58,6 +58,7 @@
   // Mots qui suivent un code de tri ou de service, pas une ville
   const NOT_CITY = /^(next|same|domicile|relais|locker|collecte|express|easy|total|belgium|belgique|belgie|belgië|france|bis|kg|grs?|be|fr)$/i;
   const CITY_CHARS = "A-Za-zÀ-ÿ'’\\-";
+  const PROVINCE = /^(hainaut|namur|liege|luxembourg|brabant( wallon| flamand)?|vlaams-brabant|anvers|antwerpen|limbourg|limburg|flandre( occidentale| orientale)?|west-vlaanderen|oost-vlaanderen|bruxelles-capitale|region de bruxelles-capitale|wallonie|belgique|belgium|belgie)$/;
   const cleanCity = (c) => String(c || '').replace(/\b(france|belgique|belgium|belgi[eë]|cedex\s*\d*)\b.*$/i, '').replace(/[\s\-',]+$/, '').trim();
 
   /** Cherche un code postal (FR 5 chiffres ou BE 4 chiffres) et la ville sur une ligne. */
@@ -78,10 +79,11 @@
       // « Châtelineau 6200 » : ville avant le code postal (ligne sans type de voie ni chiffre)
       if (!city) {
         const before = line.slice(0, index).trim();
-        const cm = before.match(new RegExp(`([${CITY_CHARS}][${CITY_CHARS} ]{1,40})$`));
-        if (cm && !hasStreetWord(before) && !/\d/.test(before)) {
-          const c = cleanCity(cm[1]);
-          if (c && !NOT_CITY.test(c)) return { cp, city: c, country, index: line.indexOf(cm[1]), cityBefore: true };
+        if (!hasStreetWord(before) && !/\d/.test(before)) {
+          // « Châtelet, Hainaut, 6200 » : on écarte la province et le pays, la ville est ce qui reste
+          const parts = before.split(',').map((x) => x.trim()).filter(Boolean).filter((x) => !PROVINCE.test(norm(x)));
+          const c = cleanCity(parts[parts.length - 1] || '');
+          if (c && new RegExp(`^[${CITY_CHARS}][${CITY_CHARS} ]{1,40}$`).test(c) && !NOT_CITY.test(c)) return { cp, city: c, country, index: line.indexOf(parts[0] || c), cityBefore: true };
         }
       }
       return { cp, city, country, index, cityBefore: false };
@@ -95,7 +97,10 @@
   const SENDER_RE = /exp[ée]diteur|amazon\s*returns|\breturns\b|schoondonk|willebroek/i;
 
   function cleanLine(l) {
-    return l.replace(/[“”«»]/g, '"').replace(/\s+/g, ' ').replace(/^[\s|:;,.\-_*•]+|[\s|:;,_*•]+$/g, '').trim();
+    return l.replace(/[“”«»]/g, '"')
+      .replace(/\bID\s*\d{1,4}\b/gi, ' ') // identifiant d'arrêt d'une autre app
+      .replace(/\b\d{1,2}[:h]\d{2}\b/g, ' ') // heure prévue
+      .replace(/\s+/g, ' ').replace(/^[\s|:;,.\-_*•]+|[\s|:;,_*•]+$/g, '').trim();
   }
   function cleanStreet(s) {
     return s.replace(/^ship\s*to\s*:?/i, '').replace(HEADER_RE, '').replace(/^[\s:,-]+/, '').replace(/[\s,;-]+$/, '').trim();
@@ -129,12 +134,19 @@
     for (let k = 0; k < toks.length; k++) {
       if (!isStreetTok(toks[k]) || (k === toks.length - 1 && !NL_SUFFIX.test(norm(toks[k])))) continue;
       let from = k;
-      if (k >= 2 && /^(bis|ter|quater|[a-d])$/i.test(toks[k - 1]) && /^\d{1,4},?$/.test(toks[k - 2])) from = k - 2;
-      else if (k >= 1 && /^\d{1,4}(bis|ter|[a-d])?,?$/i.test(toks[k - 1])) from = k - 1;
-      const name = toks.slice(0, from).join(' ').replace(/^\d{1,3}[.)]?\s+/, '').trim();
+      const trailingNum = toks.slice(k + 1).some((t) => /^\d{1,4}[a-z]?([/,].*)?$/i.test(t));
+      if (!trailingNum && k >= 2 && /^(bis|ter|quater|[a-d])$/i.test(toks[k - 1]) && /^\d{1,4},?$/.test(toks[k - 2])) from = k - 2;
+      else if (!trailingNum && k >= 1 && /^\d{1,4}(bis|ter|[a-d])?,?$/i.test(toks[k - 1])) from = k - 1;
+      const name = toks.slice(0, from).join(' ').replace(/^\d{1,3}[.)]?(\s+|$)/, '').trim();
       return { name: /[A-Za-zÀ-ÿ]{2,}/.test(name) ? name : '', street: toks.slice(from).join(' ') };
     }
     return { name: '', street: s };
+  }
+  /** « DUPONT JEAN » → « Dupont Jean » (lisible), « INCONNU » ou mots parasites → vide. */
+  function tidyName(n) {
+    const t = String(n || '').replace(/^(m\.|mr|mme|mlle|madame|monsieur)\s+/i, (m) => m).replace(/\s+/g, ' ').trim();
+    if (!t || /^inconnu$/i.test(t) || t.length < 2) return '';
+    return t === t.toUpperCase() ? t.toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase()) : t;
   }
   function looksLikeName(l) {
     return l.length >= 3 && l.length <= 40 && !/\d/.test(l) && !hasStreetWord(l) && !HEADER_RE.test(l) && !SENDER_RE.test(l) && /[A-Za-zÀ-ÿ]{2,}/.test(l);
@@ -159,7 +171,7 @@
     const out = [];
     const seen = new Set();
 
-    const push = (street, pc, city, around, sure, extraNotes) => {
+    const push = (street, pc, city, around, sure, extraNotes, name = '') => {
       const box = splitBox(trimAfterNumber(street));
       const cityPart = [pc.cp, city].filter(Boolean).join(' ');
       const address = [box.street, cityPart].filter(Boolean).join(', ');
@@ -176,7 +188,7 @@
         const pk = l.match(PKG_RE);
         if (pk) packages = Math.max(packages, Number(pk[1] || pk[2]));
       }
-      const r = { address, note: notes.filter(Boolean).join(' · '), packages, sure: sure && hasHouseNumber(box.street), country: pc.country };
+      const r = { address, name: tidyName(name), note: notes.filter(Boolean).join(' · '), packages, sure: sure && hasHouseNumber(box.street), country: pc.country };
       out.push(r);
       return r;
     };
@@ -223,7 +235,7 @@
         const name = i > 0 && !used.has(i - 1) && looksLikeName(lines[i - 1]) ? lines[i - 1] : '';
         used.add(i);
         const ctx = out.length ? out[out.length - 1].address : '';
-        const r = push('', pc, city, after, false, [name]);
+        const r = push('', pc, city, after, false, [], name);
         if (r) { r.incomplete = true; r.ctx = ctx; }
         continue;
       }
@@ -232,7 +244,7 @@
       const nameLine = firstLine > 0 && !used.has(firstLine - 1) && !sender.has(firstLine - 1) && looksLikeName(lines[firstLine - 1]) ? lines[firstLine - 1] : '';
       for (let j = firstLine; j <= i; j++) used.add(j);
       const around = lines.slice(firstLine, i + 1).concat(after);
-      push(street, pc, city, around, !!city, [inlineName || nameLine, ...extra]);
+      push(street, pc, city, around, !!city, extra, inlineName || nameLine);
     }
 
     // Rues avec numéro mais sans code postal lisible : à vérifier.
@@ -240,7 +252,7 @@
       if (used.has(i) || sender.has(i)) continue;
       if (hasHouseNumber(lines[i]) && hasStreetWord(lines[i]) && !HEADER_RE.test(lines[i])) {
         const sp = splitNameStreet(cleanStreet(lines[i]));
-        push(sp.street, { cp: '', country: '' }, '', lines.slice(i, i + 2), false, [sp.name]);
+        push(sp.street, { cp: '', country: '' }, '', lines.slice(i, i + 2), false, [], sp.name);
         used.add(i);
       }
     }

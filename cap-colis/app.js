@@ -591,7 +591,7 @@
   // ---------- Gestion des arrêts ----------
   function newStop(p, extra = {}) {
     return {
-      id: uid(), seq: (state.seq = (state.seq || 0) + 1), label: p.label, lat: p.lat, lon: p.lon, note: extra.note || '', packages: extra.packages || 1, group: 1,
+      id: uid(), seq: (state.seq = (state.seq || 0) + 1), label: p.label, lat: p.lat, lon: p.lon, name: extra.name || '', note: extra.note || '', packages: extra.packages || 1, group: 1,
       after: '', before: '', service: null, status: 'pending', check: !!extra.check,
     };
   }
@@ -935,9 +935,10 @@
   function matchesQuery(s) {
     if (!listQuery) return true;
     const n = (x) => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-    return n(`${s.label} ${s.note} ${s.seq}`).includes(n(listQuery));
+    return n(`${s.label} ${s.name || ''} ${s.note} ${s.seq}`).includes(n(listQuery));
   }
   const TICK = '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+  const PERSON = '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="3.6"/><path d="M5 20c.8-3.6 3.6-5.6 7-5.6s6.2 2 7 5.6"/></svg>';
   const CROSS = '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg>';
   function rowHTML(s, num, opts = {}) {
     const r = state.route;
@@ -950,7 +951,7 @@
       : opts.reset ? `<button class="btn link" type="button" data-act="reset" data-id="${s.id}">Rétablir</button>` : '';
     return `<li class="row ${opts.current ? 'is-current' : ''} ${s.status !== 'pending' ? 'is-done' : ''}">
       <div class="row-left"><span class="row-num">${num || '•'}</span>${eta ? `<span class="row-eta">${eta}</span>` : ''}</div>
-      <button type="button" class="row-main" data-edit="${s.id}"><span class="row-street">${esc(street)}</span>${city ? `<span class="row-city">${esc(city)}</span>` : ''}<span class="row-meta">${meta}</span></button>
+      <button type="button" class="row-main" data-edit="${s.id}"><span class="row-street">${esc(street)}</span>${city ? `<span class="row-city">${esc(city)}</span>` : ''}${s.name ? `<span class="row-name">${PERSON}${esc(s.name)}</span>` : ''}<span class="row-meta">${meta}</span></button>
       <div class="row-right">${badge}${right}</div>
     </li>`;
   }
@@ -1026,7 +1027,7 @@
       const nextHint = state.settings.autoNav && nx ? `<small>puis ${state.settings.navApp === 'cap' ? 'guidage' : esc(navName())} vers le n° ${orderNumber(nx.id)}</small>` : '';
       card.innerHTML = `<div class="card">
         <div class="card-top"><span class="num">${n}</span>
-          <div class="card-text"><div class="card-addr">${esc(splitLabel(cur.label).street)}</div><div class="card-sub">${esc(splitLabel(cur.label).city)}</div>
+          <div class="card-text"><div class="card-addr">${esc(splitLabel(cur.label).street)}</div><div class="card-sub">${esc(splitLabel(cur.label).city)}</div>${cur.name ? `<div class="card-name">${PERSON}${esc(cur.name)}</div>` : ''}
           <div class="card-sub">Arrivée prévue ${fmtClock(eta)} · ${cur.packages} colis${cur.before ? ' · avant ' + cur.before : ''}${cur.after ? ' · après ' + cur.after : ''}</div></div></div>
         ${houseView(cur)}
         ${cur.note ? `<div class="card-note">${esc(cur.note)}</div>` : ''}
@@ -1109,6 +1110,7 @@
     $('stopDialogTitle').textContent = n ? `Arrêt n° ${n}` : 'Arrêt';
     $('stopDialogAddr').textContent = s.label;
     $('stopHouse').innerHTML = houseView(s);
+    $('fName').value = s.name || '';
     $('fNote').value = s.note || '';
     $('fPackages').value = s.packages || 1;
     $('fService').value = s.service ?? '';
@@ -1138,6 +1140,7 @@
     } else if (v === 'save') {
       const g = Number(document.querySelector('input[name="fGroup"]:checked').value);
       const constraintsChanged = g !== s.group || $('fAfter').value !== s.after || $('fBefore').value !== s.before;
+      s.name = $('fName').value.trim();
       s.note = $('fNote').value.trim();
       s.packages = Math.max(1, Number($('fPackages').value) || 1);
       s.service = $('fService').value === '' ? null : Math.max(0, Number($('fService').value));
@@ -1306,7 +1309,7 @@
       known.add(k);
       const dup = existing.has(k);
       state.found.push({
-        id: uid(), address: r.address, note: r.note || '', packages: r.packages || 1, sure: !!r.sure, incomplete: !!r.incomplete,
+        id: uid(), address: r.address, name: r.name || '', note: r.note || '', packages: r.packages || 1, sure: !!r.sure, incomplete: !!r.incomplete,
         checked: !dup && !r.incomplete, source, error: dup ? 'Déjà dans la tournée' : '',
       });
       added++;
@@ -1383,6 +1386,7 @@
         <input type="checkbox" class="f-check" aria-label="Garder cette adresse" ${x.checked ? 'checked' : ''}>
         <div class="f-body">
           <input type="text" class="f-addr" value="${esc(x.address)}" aria-label="Adresse" autocomplete="off">
+          ${x.name ? `<div class="f-name">${PERSON}${esc(x.name)}</div>` : ''}
           <div class="f-meta">${x.packages > 1 ? `<span class="pill">${x.packages} colis</span>` : ''}${x.incomplete ? '<span class="pill late">Rue manquante : complétez</span>' : !x.sure ? '<span class="pill window">À vérifier</span>' : ''}${x.error ? `<span class="pill late">${esc(x.error)}</span>` : ''}${x.note ? `<span class="meta-note">${esc(x.note)}</span>` : ''}</div>
         </div>
         <button type="button" class="f-del" aria-label="Retirer cette adresse">✕</button>
@@ -1455,7 +1459,7 @@
         const g = await geocodeOne(f.address);
         if (!g) { f.error = 'Introuvable : corrigez l\'adresse puis touchez Ajouter'; missing++; continue; }
         const weak = (g.score != null && g.score < 0.5) || (g.type && g.type !== 'housenumber' && Scan.hasHouseNumber(f.address.split(',')[0]));
-        addStop(g, { note: f.note, packages: f.packages, check: weak || !f.sure, silent: true });
+        addStop(g, { name: f.name, note: f.note, packages: f.packages, check: weak || !f.sure, silent: true });
         f.added = true; f.error = ''; ok++;
         if (k % 5 === 4) { save(); renderFound(); } // on garde la progression si l'app se ferme
         await sleep(250);
@@ -2140,7 +2144,7 @@
     $('navTop').hidden = true; $('navRadar').hidden = true;
     $('navDriving').hidden = true; $('navArrived').hidden = false;
     const s = nav.stop;
-    $('navArrAddr').textContent = s.label;
+    $('navArrAddr').textContent = s.name ? `${s.name} · ${s.label}` : s.label;
     $('navArrNote').textContent = [s.packages > 1 ? `${s.packages} colis` : '', s.note].filter(Boolean).join(' · ');
     $('navHouse').innerHTML = houseView(s, 'big');
     $('navArrived').classList.toggle('home', !!s.isEnd);
@@ -2414,12 +2418,12 @@
     const r = state.route;
     const order = r ? [...r.order, ...state.stops.filter((s) => !r.order.includes(s.id)).map((s) => s.id)] : state.stops.map((s) => s.id);
     const q = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const rows = [['Ordre', 'Adresse', 'Statut', 'Motif', 'Heure prévue', 'Heure réelle', 'Colis', 'Note', 'Latitude', 'Longitude']];
+    const rows = [['Ordre', 'Destinataire', 'Adresse', 'Statut', 'Motif', 'Heure prévue', 'Heure réelle', 'Colis', 'Note', 'Latitude', 'Longitude']];
     order.forEach((id, k) => {
       const s = stopById(id); if (!s) return;
       const real = s.doneAt ? new Date(s.doneAt).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '';
       const st = { pending: 'À livrer', done: 'Livré', failed: 'Échec' }[s.status];
-      rows.push([k + 1, s.label, st, s.failReason, r ? fmtClock(r.etas[id]) : '', real, s.packages, s.note, s.lat, s.lon]);
+      rows.push([k + 1, s.name || '', s.label, st, s.failReason, r ? fmtClock(r.etas[id]) : '', real, s.packages, s.note, s.lat, s.lon]);
     });
     const csv = '﻿' + rows.map((row) => row.map(q).join(';')).join('\r\n');
     const name = `tournee-${new Date().toISOString().slice(0, 10)}.csv`;
