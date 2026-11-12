@@ -4,10 +4,10 @@
 
   // ---------- État & persistance ----------
   const STORE_KEY = 'cap-colis-v1';
-  const SETTINGS_VERSION = 6;
+  const SETTINGS_VERSION = 7;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'cap',
-    autoNav: true, radars: true, satellite: false, region: 'be', osrm: 'https://router.project-osrm.org', map3d: false,
+    autoNav: true, radars: true, satellite: false, region: 'be', startMode: 'gps', osrm: 'https://router.project-osrm.org', map3d: false,
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
@@ -28,6 +28,7 @@
         if ((old.v || 1) < 4) s.settings.navApp = 'cap'; // GPS intégré demandé
         if ((old.v || 1) < 5) { s.settings.satellite = false; s.settings.map3d = false; } // plan à plat avec les maisons
         if ((old.v || 1) < 6) s.settings.region = 'be'; // recherche d'adresses en Belgique uniquement
+        if ((old.v || 1) < 7) s.settings.startMode = 'gps'; // départ = position au lancement de la tournée
         s.settings.v = SETTINGS_VERSION;
         s.found = Array.isArray(s.found) ? s.found : [];
         s.seq = s.seq || 0;
@@ -606,7 +607,8 @@
     }
     return s;
   }
-  function setStart(p) {
+  function setStart(p, gps) {
+    state.settings.startMode = gps ? 'gps' : 'fixed';
     state.start = { label: p.label, lat: p.lat, lon: p.lon };
     $('startInput').value = '';
     if (state.route) {
@@ -681,8 +683,28 @@
     return out;
   }
 
+  /** Départ « Ma position » : on relève le GPS au moment de lancer la tournée. */
+  async function ensureStart() {
+    if (state.settings.startMode !== 'gps') return !!state.start;
+    const btn = $('optimizeBtn');
+    const old = btn.textContent;
+    btn.textContent = 'Position en cours…';
+    try {
+      const p = await locate();
+      lastKnownPos = p;
+      state.start = { label: 'Ma position', lat: p.lat, lon: p.lon };
+      geoReverse(p.lat, p.lon).then((l) => { if (state.start && state.start.lat === p.lat) { state.start.label = `Ma position · ${splitLabel(l).street}`; if (state.route && state.route.start) state.route.start.label = state.start.label; renderAll(); } });
+      return true;
+    } catch (e) {
+      if (state.start) { toast('Position GPS introuvable : départ du dernier point connu.'); return true; }
+      toast('Position introuvable. Autorisez la localisation ou tapez une adresse de départ.');
+      return false;
+    } finally { btn.textContent = old; }
+  }
+
   let optimizing = false;
   async function optimize(fromHere) {
+    if (!fromHere && !optimizing && !(await ensureStart())) return;
     if (optimizing) return;
     const pending = state.stops.filter((s) => s.status === 'pending');
     const start = fromHere || state.start;
@@ -934,7 +956,9 @@
   }
 
   function renderPlan() {
-    $('startChosen').innerHTML = state.start ? `<strong>${esc(state.start.label)}</strong>` : 'Aucun départ. Saisissez une adresse ou touchez ◎.';
+    $('startChosen').innerHTML = state.settings.startMode === 'gps'
+      ? '<strong>Ma position</strong> : relevée au lancement de la tournée. Tapez une adresse pour partir d\'un dépôt fixe.'
+      : state.start ? `<strong>${esc(state.start.label)}</strong> · <button type="button" class="btn link" id="useGps">Partir de ma position</button>` : 'Aucun départ. Saisissez une adresse ou touchez ◎.';
     const ordered = state.route
       ? [...state.route.order.map(stopById).filter(Boolean), ...state.stops.filter((s) => !state.route.order.includes(s.id))]
       : state.stops;
@@ -961,14 +985,14 @@
 
   function endLabel() {
     const m = state.settings.endMode;
-    if (m === 'start') return state.start ? `retour à ${splitLabel(state.start.label).street}` : 'retour au départ';
+    if (m === 'start') return state.settings.startMode === 'gps' && !state.route ? 'retour au point de départ' : state.start ? `retour à ${splitLabel(state.start.label).street.replace(/^Ma position · /, '')}` : 'retour au départ';
     if (m === 'address') return state.end ? splitLabel(state.end.label).street : 'adresse à choisir';
     return 'dernier arrêt';
   }
   function renderRun() {
     const card = $('currentCard');
     $('tripEnds').innerHTML = state.start || state.stops.length
-      ? `<span><small>Départ</small>${esc(state.start ? splitLabel(state.start.label).street : 'à choisir')}</span><span class="arrow">→</span><span><small>Arrivée</small>${esc(endLabel())}</span><button class="btn link" type="button" data-go="plan">Modifier</button>`
+      ? `<span><small>Départ</small>${esc(state.start ? splitLabel(state.start.label).street : state.settings.startMode === 'gps' ? 'Ma position' : 'à choisir')}</span><span class="arrow">→</span><span><small>Arrivée</small>${esc(endLabel())}</span><button class="btn link" type="button" data-go="plan">Modifier</button>`
       : '';
     const r = state.route;
     const total = state.stops.length;
@@ -2152,6 +2176,7 @@
     renderAll();
   }
   async function startInOrder() {
+    if (!(await ensureStart())) return;
     const pending = state.stops.filter((s) => s.status === 'pending');
     if (!state.start) { toast('Indiquez d\'abord votre point de départ.'); $('startInput').focus(); return; }
     if (!pending.length) { toast('Ajoutez au moins un arrêt.'); return; }
@@ -2296,11 +2321,16 @@
       navigator.geolocation.getCurrentPosition((p) => resolve({ lat: p.coords.latitude, lon: p.coords.longitude }), reject, { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 });
     });
   }
+  document.addEventListener('click', (e) => {
+    if (e.target.id !== 'useGps') return;
+    state.settings.startMode = 'gps'; save(); renderPlan();
+    toast('Départ : votre position, relevée au lancement de la tournée.');
+  });
   $('startGps').addEventListener('click', async () => {
     try {
       const p = await locate();
       lastKnownPos = p;
-      setStart({ label: await geoReverse(p.lat, p.lon), lat: p.lat, lon: p.lon });
+      setStart({ label: `Ma position · ${splitLabel(await geoReverse(p.lat, p.lon)).street}`, lat: p.lat, lon: p.lon }, true);
     } catch (e) { toast('Position introuvable. Autorisez la localisation ou saisissez l\'adresse.'); }
   });
   $('reoptHere').addEventListener('click', async () => {
@@ -2395,6 +2425,7 @@
       ['Place de Leernes, 6142 Leernes', 50.3960, 4.3640],
     ];
     state.start = { label: 'Dépôt (exemple), 6220 Fleurus', lat: 50.4840, lon: 4.5500 };
+    state.settings.startMode = 'fixed';
     state.stops = demo.map(([label, lat, lon]) => newStop({ label, lat, lon }));
     state.stops[3].note = 'Exemple : boîte 6, sonner chez le voisin si absent';
     state.stops[3].packages = 4;
