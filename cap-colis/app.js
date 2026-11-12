@@ -319,6 +319,17 @@
     return out;
   }
   async function geoSearch(q, limit = 5) {
+    // coordonnées collées depuis Google Maps (« 50.42303, 4.47543 ») : le point exact
+    const gps = q.match(/(-?\d{1,2}\.\d{3,})\s*[,; ]\s*(-?\d{1,3}\.\d{3,})/);
+    if (gps) {
+      const lat = +gps[1], lon = +gps[2];
+      let label = `Point GPS ${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+      try {
+        const r = await fetchJSON(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}&lang=fr&limit=1`, 6000);
+        if (r.features && r.features[0]) label = photonLabel(r.features[0].properties);
+      } catch (e) { /* coordonnées brutes */ }
+      return [{ label, lat, lon, type: 'housenumber' }];
+    }
     const country = countryFor(q);
     if (country === 'FR' || (country === '' && state.settings.region === 'fr')) {
       try {
