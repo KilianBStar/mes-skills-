@@ -484,3 +484,16 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .suggest li.sug span { display: flex; flex-direction: column; min-width: 0; }
 .suggest li.sug b { font-weight: 500; }
 .suggest li.sug small { color: var(--muted); font-size: .88rem; }
+
+/* Départ / arrivée */
+.end-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip-sel { padding: 9px 12px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--ink); cursor: pointer; font-size: .92rem; }
+.chip-sel[aria-checked="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.trip-ends { display: flex; align-items: center; gap: 10px; font-size: .95rem; }
+.trip-ends:empty { display: none; }
+.trip-ends span { display: flex; flex-direction: column; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trip-ends small { color: var(--muted); font-size: .78rem; }
+.trip-ends .arrow { color: var(--muted); flex: none; }
+.trip-ends .btn.link { margin-left: auto; flex: none; }
+.nav-panel.arrived.home #navFail, .nav-panel.arrived.home #navSkip { display: none; }
+.nav-panel.arrived.home .nav-arr-actions { grid-template-columns: 1fr; }

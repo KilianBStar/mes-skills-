@@ -609,8 +609,26 @@
   function setStart(p) {
     state.start = { label: p.label, lat: p.lat, lon: p.lon };
     $('startInput').value = '';
-    state.route = null;
+    if (state.route) {
+      // tournée en cours : on garde l'ordre et les livraisons, on recalcule les heures
+      state.route.start = { ...state.start };
+      state.route.geometry = null;
+      rebuildMatrix();
+      toast('Départ modifié. Heures recalculées.');
+    }
     renderAll();
+  }
+  /** Arrivée : retour au départ, dernier arrêt ou autre adresse ; garde l'ordre de la tournée. */
+  function setEnd(mode, p) {
+    state.settings.endMode = mode;
+    if (p) state.end = { label: p.label, lat: p.lat, lon: p.lon };
+    if (state.route) {
+      const e = endPoint();
+      state.route.endPt = e ? { lat: e.lat, lon: e.lon, label: e.label } : null;
+      state.route.geometry = null;
+      if (mode !== 'address' || state.end) { rebuildMatrix(); toast('Arrivée modifiée. Heure de fin recalculée.'); }
+    }
+    renderSettings(); renderAll();
   }
 
   function orderNumber(id) {
@@ -941,8 +959,17 @@
     }
   }
 
+  function endLabel() {
+    const m = state.settings.endMode;
+    if (m === 'start') return state.start ? `retour à ${splitLabel(state.start.label).street}` : 'retour au départ';
+    if (m === 'address') return state.end ? splitLabel(state.end.label).street : 'adresse à choisir';
+    return 'dernier arrêt';
+  }
   function renderRun() {
     const card = $('currentCard');
+    $('tripEnds').innerHTML = state.start || state.stops.length
+      ? `<span><small>Départ</small>${esc(state.start ? splitLabel(state.start.label).street : 'à choisir')}</span><span class="arrow">→</span><span><small>Arrivée</small>${esc(endLabel())}</span><button class="btn link" type="button" data-go="plan">Modifier</button>`
+      : '';
     const r = state.route;
     const total = state.stops.length;
     const done = state.stops.filter((s) => s.status === 'done').length;
@@ -989,7 +1016,10 @@
     } else if (extra.length) {
       card.innerHTML = banner;
     } else {
-      card.innerHTML = `<div class="card done-card"><div class="big-num">${done}/${total}</div><div class="card-addr">Tournée terminée</div><div class="card-sub">${failed ? `${plural(failed, 'colis')} à rapporter.` : 'Tous les colis sont livrés.'}</div></div>`;
+      const home = endPoint();
+      card.innerHTML = `<div class="card done-card"><div class="big-num">${done}/${total}</div><div class="card-addr">Tournée terminée</div><div class="card-sub">${failed ? `${plural(failed, 'colis')} à rapporter.` : 'Tous les colis sont livrés.'}</div>
+        ${home ? `<button class="btn primary nav" type="button" data-act="home">Rentrer : ${esc(splitLabel(home.label).street)}</button>` : ''}
+        <button class="btn ghost" type="button" data-go="plan">Changer l'adresse d'arrivée</button></div>`;
     }
     $('runList').innerHTML = r.order.map((id, k) => {
       const s = stopById(id);
@@ -1026,6 +1056,11 @@
       document.querySelectorAll(`input[name="${name}"]`).forEach((i) => { i.checked = i.value === st[name]; });
     }
     $('endWrap').hidden = st.endMode !== 'address';
+    document.querySelectorAll('[data-end]').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.end === st.endMode)));
+    $('endPlanWrap').hidden = st.endMode !== 'address';
+    $('endPlanChosen').innerHTML = st.endMode === 'address'
+      ? (state.end ? `<strong>${esc(state.end.label)}</strong>` : 'Tapez l\'adresse d\'arrivée.')
+      : st.endMode === 'start' ? (state.start ? `Retour à <strong>${esc(state.start.label)}</strong>` : 'Retour au départ.') : 'La tournée finit au dernier colis.';
     $('endChosen').innerHTML = st.endMode === 'address' ? (state.end ? `<strong>${esc(state.end.label)}</strong>` : 'Aucune adresse d\'arrivée.') : '';
   }
 
@@ -2058,6 +2093,8 @@
     $('navArrAddr').textContent = s.label;
     $('navArrNote').textContent = [s.packages > 1 ? `${s.packages} colis` : '', s.note].filter(Boolean).join(' · ');
     $('navHouse').innerHTML = houseView(s, 'big');
+    $('navArrived').classList.toggle('home', !!s.isEnd);
+    if (s.isEnd) { $('navArrSide').textContent = 'Fin de tournée'; $('navDone').innerHTML = 'Terminer la tournée'; return; }
     const nx = nextAfter(s.id);
     $('navDone').innerHTML = `Livré${state.settings.autoNav && nx ? `<small>puis guidage vers le n° ${orderNumber(nx.id)}</small>` : ''}`;
   }
@@ -2080,7 +2117,11 @@
     if (!nav.voice) try { speechSynthesis.cancel(); } catch (e) { /* pas de voix */ }
   });
   $('navRecenter').addEventListener('click', () => { nav.follow = true; $('navRecenter').hidden = true; });
-  $('navDone').addEventListener('click', () => { const s = nav.stop; stopNav(true); mark(s.id, 'done'); });
+  $('navDone').addEventListener('click', () => {
+    const s = nav.stop; stopNav(true);
+    if (s.isEnd) { $('finishRoute').click(); return; }
+    mark(s.id, 'done');
+  });
   $('navFail').addEventListener('click', () => { const s = nav.stop; stopNav(true); failId = s.id; $('failDialog').showModal(); });
   $('navSkip').addEventListener('click', () => { const s = nav.stop; stopNav(true); skip(s.id); });
   // écran allumé : au retour dans l'app et au premier geste (Safari exige parfois un geste)
@@ -2241,7 +2282,13 @@
 
   attachSearch($('startInput'), $('startSuggest'), setStart);
   attachSearch($('stopInput'), $('stopSuggest'), (it) => { addStop(it); $('stopInput').value = ''; listQuery = ''; renderPlan(); });
-  attachSearch($('endInput'), $('endSuggest'), (it) => { state.end = { label: it.label, lat: it.lat, lon: it.lon }; $('endInput').value = ''; state.route = null; renderSettings(); renderAll(); });
+  attachSearch($('endInput'), $('endSuggest'), (it) => { $('endInput').value = ''; setEnd('address', it); });
+  attachSearch($('endPlanInput'), $('endPlanSuggest'), (it) => { $('endPlanInput').value = ''; setEnd('address', it); });
+  document.querySelectorAll('[data-end]').forEach((b) => b.addEventListener('click', () => {
+    const m = b.dataset.end;
+    if (m === 'address' && !state.end) { state.settings.endMode = 'address'; renderSettings(); $('endPlanInput').focus(); return; }
+    setEnd(m);
+  }));
 
   function locate() {
     return new Promise((resolve, reject) => {
@@ -2289,6 +2336,7 @@
     else if (act === 'fail') { failId = id; $('failDialog').showModal(); }
     else if (act === 'skip') skip(id);
     else if (act === 'reopt') reoptimizeRemaining();
+    else if (act === 'home') { const h = endPoint(); if (h) startNav({ id: '__end', label: h.label, lat: h.lat, lon: h.lon, packages: 0, note: '', isEnd: true }); }
     else if (act === 'reset') { const s = stopById(id); if (s) { s.status = 'pending'; s.failReason = ''; s.doneAt = null; lastFocusId = null; renderAll(); } }
   });
 
@@ -2301,7 +2349,7 @@
   $('setRadars').addEventListener('change', (e) => { state.settings.radars = e.target.checked; save(); });
   document.querySelectorAll('input[name="endMode"], input[name="navApp"], input[name="region"]').forEach((i) => i.addEventListener('change', () => {
     state.settings[i.name] = i.value;
-    if (i.name === 'endMode') state.route = null;
+    if (i.name === 'endMode') { setEnd(i.value); return; }
     renderSettings(); renderAll();
   }));
 

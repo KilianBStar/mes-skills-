@@ -102,6 +102,20 @@
         <div class="chosen" id="startChosen"></div>
       </div>
 
+      <div class="start-line">
+        <span class="label">Arrivée (après le dernier colis)</span>
+        <div class="end-chips" role="radiogroup" aria-label="Arrivée">
+          <button type="button" class="chip-sel" data-end="start">Retour au départ</button>
+          <button type="button" class="chip-sel" data-end="none">Au dernier arrêt</button>
+          <button type="button" class="chip-sel" data-end="address">Autre adresse</button>
+        </div>
+        <div class="search" id="endPlanWrap" hidden>
+          <input id="endPlanInput" type="search" autocomplete="off" enterkeyhint="search" placeholder="Adresse d'arrivée (maison, dépôt…)">
+          <ul class="suggest" id="endPlanSuggest" role="listbox" hidden></ul>
+        </div>
+        <div class="chosen" id="endPlanChosen"></div>
+      </div>
+
       <div class="list-head" id="stopsHead">
         <h2 id="stopsTitle">Arrêts</h2>
         <button class="btn link danger" id="clearAll" type="button">Tout effacer</button>
@@ -121,6 +135,7 @@
 
     <!-- TOURNÉE -->
     <div class="view" id="view-run" hidden>
+      <div class="trip-ends" id="tripEnds"></div>
       <div class="finish" id="finishBox" hidden>
         <span class="finish-label">Fin estimée</span>
         <span class="finish-time" id="finishTime">–</span>
