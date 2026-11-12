@@ -23,7 +23,7 @@
 <body>
 <div class="app" id="app">
   <div id="map" class="map" role="region" aria-label="Carte de la tournée"></div>
-  <button class="fab fab-menu" id="menuBtn" type="button" aria-label="Menu" aria-haspopup="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+  <button class="fab fab-menu" id="menuBtn" type="button" aria-label="Mes tournées" aria-haspopup="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <div class="fab-col">
     <button class="fab" id="btn3d" type="button">2D</button>
     <button class="fab" id="btnFit" type="button" aria-label="Voir toute la tournée"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
@@ -42,13 +42,23 @@
 
     <!-- PRÉPARER -->
     <div class="view" id="view-plan">
-      <button class="scan-cta" id="scanOpen" type="button">
-        <span class="scan-icon" aria-hidden="true"></span>
-        <span><b>Scanner le manifeste</b><br><small>Photos du manifeste ou des étiquettes, autant qu'il en faut</small></span>
-      </button>
+      <div class="add-wrap">
+        <div class="add-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5 21 21"/></svg>
+          <input id="stopInput" type="search" autocomplete="off" enterkeyhint="search" placeholder="Ajouter ou trouver des arrêts" aria-label="Ajouter ou trouver des arrêts">
+          <button class="add-icon" id="addScan" type="button" aria-label="Scanner des étiquettes"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M8 10h8M8 14h8"/></svg></button>
+          <button class="add-icon" id="addVoice" type="button" aria-label="Dicter une adresse"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg></button>
+        </div>
+        <ul class="suggest" id="stopSuggest" role="listbox" hidden></ul>
+      </div>
+      <div class="add-modes">
+        <button class="mode" id="modeMap" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg><span>Carte</span></button>
+        <button class="mode" id="scanOpen" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5.5A1.5 1.5 0 0 1 5.5 4H8M16 4h2.5A1.5 1.5 0 0 1 20 5.5V8M20 16v2.5a1.5 1.5 0 0 1-1.5 1.5H16M8 20H5.5A1.5 1.5 0 0 1 4 18.5V16M8 10h8M8 14h8"/></svg><span>Scanner</span></button>
+        <button class="mode" id="modeVoice" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/></svg><span>Voix</span></button>
+      </div>
 
-      <div class="field">
-        <label class="label" for="startInput">Départ</label>
+      <div class="start-line">
+        <span class="label">Départ</span>
         <div class="search">
           <input id="startInput" type="search" autocomplete="off" enterkeyhint="search" placeholder="Adresse du dépôt">
           <button class="icon-btn" id="startGps" type="button" title="Partir de ma position" aria-label="Partir de ma position">◎</button>
@@ -57,21 +67,15 @@
         <div class="chosen" id="startChosen"></div>
       </div>
 
-      <div class="field">
-        <label class="label" for="stopInput">Ajouter un arrêt</label>
-        <div class="search">
-          <input id="stopInput" type="search" autocomplete="off" enterkeyhint="search" placeholder="Tapez une adresse…">
-          <ul class="suggest" id="stopSuggest" role="listbox" hidden></ul>
-        </div>
-        <p class="hint">Ou touchez la carte à l'endroit voulu.</p>
-      </div>
-
-      <div class="list-head">
+      <div class="list-head" id="stopsHead">
         <h2 id="stopsTitle">Arrêts</h2>
         <button class="btn link danger" id="clearAll" type="button">Tout effacer</button>
       </div>
       <ol class="stops" id="stopList"></ol>
-      <p class="empty" id="stopsEmpty">Aucun arrêt. Scannez votre manifeste ou tapez une adresse.</p>
+      <div class="empty-add" id="stopsEmpty">
+        <svg viewBox="0 0 48 48" aria-hidden="true"><path d="M14 6h-4a4 4 0 0 0-4 4v4M34 6h4a4 4 0 0 1 4 4v4M42 30v4a4 4 0 0 1-4 4h-9l-5 5-5-5h-9a4 4 0 0 1-4-4v-4M6 20v4M42 20v4M20 6h8M24 16v12M18 22h12"/></svg>
+        <p>Ajoutez des arrêts ou trouvez des arrêts sur ce trajet</p>
+      </div>
 
       <div class="sticky-cta">
         <button class="btn primary big" id="optimizeBtn" type="button">Optimiser la tournée</button>
@@ -167,8 +171,56 @@
   <button type="button" role="menuitem" data-menu="scan">Scanner le manifeste</button>
   <button type="button" role="menuitem" data-menu="reopt">Réoptimiser depuis ma position</button>
   <button type="button" role="menuitem" data-menu="export">Exporter le bilan</button>
+  <button type="button" role="menuitem" data-menu="tours">Mes tournées</button>
   <button type="button" role="menuitem" data-menu="settings">Réglages</button>
 </div>
+
+
+<!-- Mes tournées (menu latéral) -->
+<div class="drawer-back" id="drawerBack" hidden></div>
+<aside class="drawer" id="drawer" aria-label="Mes tournées" hidden>
+  <div class="drawer-top">
+    <button class="icon-btn flat" id="drawerClose" type="button" aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <span class="spacer"></span>
+    <button class="icon-btn flat" id="drawerHelp" type="button" aria-label="Aide"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7M12 17h.01"/></svg></button>
+    <button class="icon-btn flat" id="drawerSettings" type="button" aria-label="Réglages"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
+  </div>
+  <div class="drawer-brand">
+    <span class="brand-badge" aria-hidden="true">CC</span>
+    <div><b>Cap Colis</b><small id="drawerStats">Tournées enregistrées sur ce téléphone</small></div>
+  </div>
+  <div class="drawer-list" id="tourList"></div>
+  <div class="drawer-foot">
+    <button class="btn primary wide" id="newTour" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Créer un trajet</button>
+  </div>
+</aside>
+
+<dialog id="tourDialog" class="dialog">
+  <form method="dialog">
+    <h2 id="tourDialogTitle">Tournée</h2>
+    <p class="dialog-addr" id="tourDialogSub"></p>
+    <div class="dialog-col">
+      <button class="btn primary" value="open">Ouvrir</button>
+      <button class="btn ghost" value="redo">Refaire ce trajet aujourd'hui</button>
+      <button class="btn danger-fill" value="delete">Supprimer</button>
+      <button class="btn ghost" value="cancel">Annuler</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="helpDialog" class="dialog">
+  <form method="dialog">
+    <h2>Utiliser Cap Colis</h2>
+    <ol class="help-list">
+      <li><b>Ajoutez vos arrêts.</b> Scannez la liste du terminal ou les étiquettes, dictez une adresse, tapez-la ou touchez la carte.</li>
+      <li><b>Optimisez.</b> L'app calcule l'ordre de passage et l'heure de fin, à 1 minute par arrêt.</li>
+      <li><b>Livrez.</b> « Y aller » ouvre Waze. « Livré » ouvre Waze vers l'arrêt suivant.</li>
+      <li><b>Terminez.</b> « Marquer le trajet comme terminé », puis exportez le bilan.</li>
+    </ol>
+    <p class="hint">Vos tournées restent sur ce téléphone. Retrouvez-les dans le menu ≡.</p>
+    <div class="dialog-actions"><span class="spacer"></span><button class="btn primary" value="ok">Compris</button></div>
+  </form>
+</dialog>
 
 <!-- Fin de tournée -->
 <dialog id="endDialog" class="dialog">
@@ -177,7 +229,7 @@
     <p id="endSummary"></p>
     <div class="dialog-col">
       <button class="btn primary" type="button" id="endExport">Exporter le bilan</button>
-      <button class="btn danger-fill" value="new">Nouvelle tournée (efface les arrêts)</button>
+      <button class="btn danger-fill" value="new">Nouvelle tournée (celle-ci reste dans le menu ≡)</button>
       <button class="btn ghost" value="cancel">Continuer la tournée</button>
     </div>
   </form>

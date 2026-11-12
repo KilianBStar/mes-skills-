@@ -27,14 +27,43 @@
         s.settings.v = SETTINGS_VERSION;
         s.found = Array.isArray(s.found) ? s.found : [];
         s.seq = s.seq || 0;
+        s.history = Array.isArray(s.history) ? s.history : [];
+        s.tourId = s.tourId || Math.random().toString(36).slice(2, 10);
+        s.tourDate = s.tourDate || todayISO();
         for (const st of s.stops) if (!st.seq) st.seq = ++s.seq;
         return s;
       }
     } catch (e) { /* stockage indisponible */ }
-    return { settings: Object.assign({}, DEFAULT_SETTINGS), start: null, end: null, stops: [], route: null, found: [], seq: 0 };
+    return { settings: Object.assign({}, DEFAULT_SETTINGS), start: null, end: null, stops: [], route: null, found: [], seq: 0, history: [], tourId: Math.random().toString(36).slice(2, 10), tourDate: todayISO() };
+  }
+  function todayISO() {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+  /** Copie légère de la tournée courante pour l'historique (sans matrice ni tracé). */
+  function tourSnapshot() {
+    const r = state.route;
+    return {
+      id: state.tourId, date: state.tourDate, updatedAt: Date.now(), start: state.start, end: state.end, seq: state.seq,
+      stops: state.stops,
+      route: r ? { order: r.order, etas: r.etas, startTime: r.startTime, duration: r.duration, distance: r.distance, late: r.late, end: r.end, source: r.source, start: r.start, endPt: r.endPt } : null,
+    };
+  }
+  function syncHistory() {
+    const i = state.history.findIndex((h) => h.id === state.tourId);
+    if (!state.stops.length) { if (i >= 0) state.history.splice(i, 1); return; }
+    const snap = tourSnapshot();
+    if (i >= 0) state.history[i] = snap; else state.history.unshift(snap);
+    state.history.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.updatedAt - a.updatedAt));
+    state.history = state.history.slice(0, 90); // environ 3 mois de tournées
   }
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* stockage plein ou bloqué */ }
+    try { syncHistory(); } catch (e) { /* historique ignoré */ }
+    try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch (e) {
+      // stockage plein : on allège l'historique et on réessaie
+      try { state.history = state.history.slice(0, 20); localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e2) { /* tant pis */ }
+    }
   }
 
   // ---------- Utilitaires ----------
@@ -679,6 +708,7 @@
     const totalPk = state.stops.reduce((a, s) => a + (Number(s.packages) || 1), 0);
     $('stopsTitle').textContent = state.stops.length ? `${plural(state.stops.length, 'arrêt')} · ${totalPk} colis` : 'Arrêts';
     $('stopsEmpty').hidden = state.stops.length > 0;
+    $('stopsHead').hidden = state.stops.length === 0;
     $('clearAll').hidden = state.stops.length === 0;
     $('stopList').innerHTML = ordered.filter(matchesQuery).map((s) => rowHTML(s, orderNumber(s.id))).join('');
     const sum = $('routeSummary');
@@ -1210,7 +1240,7 @@
     pop.hidden = show === undefined ? !pop.hidden : !show;
     if (!pop.hidden) pop.querySelector('button').focus();
   }
-  $('menuBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
+  $('menuBtn').addEventListener('click', (e) => { e.stopPropagation(); openDrawer(); });
   $('moreBtn').addEventListener('click', (e) => { e.stopPropagation(); toggleMenu(); });
   document.addEventListener('click', (e) => { if (!$('menuPop').hidden && !e.target.closest('#menuPop')) toggleMenu(false); });
   $('menuPop').addEventListener('click', (e) => {
@@ -1221,8 +1251,128 @@
     else if (m === 'scan') openScan();
     else if (m === 'reopt') $('reoptHere').click();
     else if (m === 'export') $('exportCsv').click();
+    else if (m === 'tours') openDrawer();
   });
   $('settingsDone').addEventListener('click', () => switchView(state.route ? 'run' : 'plan'));
+
+  // ---------- Mes tournées (menu latéral) ----------
+  const DAYS = ['Dimanche', 'Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+  const MONTHS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
+  const MONTHS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+  const parseISO = (iso) => { const [y, m, d] = iso.split('-').map(Number); return new Date(y, m - 1, d); };
+  function groupLabel(iso) {
+    const d = parseISO(iso), now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diff = Math.round((today - d) / 86400000);
+    if (diff <= 0) return "Aujourd'hui";
+    const monday = new Date(today); monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+    if (d >= monday) return 'Plus tôt cette semaine';
+    if (d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()) return 'Plus tôt ce mois';
+    return `${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}`;
+  }
+  function renderDrawer() {
+    syncHistory();
+    const list = state.history;
+    $('drawerStats').textContent = list.length ? `${plural(list.length, 'tournée')} enregistrée${list.length > 1 ? 's' : ''} sur ce téléphone` : 'Vos tournées restent sur ce téléphone';
+    if (!list.length) { $('tourList').innerHTML = '<p class="drawer-empty">Aucune tournée enregistrée. Touchez « Créer un trajet » pour commencer.</p>'; return; }
+    let html = '', last = '';
+    for (const h of list) {
+      const g = groupLabel(h.date);
+      if (g !== last) { html += `<div class="tour-group">${esc(g)}</div>`; last = g; }
+      const d = parseISO(h.date);
+      const done = h.stops.filter((x) => x.status === 'done').length;
+      html += `<div class="tour-item ${h.id === state.tourId ? 'current' : ''}">
+        <button type="button" class="tour-open" data-tour="${h.id}"><span class="t-date">${String(d.getDate()).padStart(2, '0')} ${MONTHS[d.getMonth()]}</span><span class="t-day">${DAYS[d.getDay()]}</span><span class="t-sub">${plural(h.stops.length, 'arrêt')} · ${done} livré${done > 1 ? 's' : ''}</span></button>
+        <button type="button" class="t-more" data-tmore="${h.id}" aria-label="Options de la tournée"><svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="19" r="1.6"/></svg></button>
+      </div>`;
+    }
+    $('tourList').innerHTML = html;
+  }
+  function openDrawer() { toggleMenu(false); renderDrawer(); $('drawer').hidden = false; $('drawerBack').hidden = false; }
+  function closeDrawer() { $('drawer').hidden = true; $('drawerBack').hidden = true; }
+  function clearToast() { $('toast').hidden = true; undoAction = null; clearTimeout(toastTimer); }
+  function loadTour(h) {
+    clearToast();
+    syncHistory();
+    state.tourId = h.id; state.tourDate = h.date; state.start = h.start; state.end = h.end;
+    state.stops = JSON.parse(JSON.stringify(h.stops)); state.seq = h.seq || state.stops.length;
+    state.route = h.route ? JSON.parse(JSON.stringify(h.route)) : null;
+    state.found = [];
+    lastBoundsKey = ''; lastFocusId = null;
+    renderAll();
+    switchView(state.route ? 'run' : 'plan');
+  }
+  function newTour(fromStops) {
+    clearToast();
+    syncHistory();
+    state.tourId = uid(); state.tourDate = todayISO();
+    state.stops = []; state.route = null; state.found = []; state.seq = 0;
+    if (fromStops) for (const st of fromStops) state.stops.push(newStop(st, { note: st.note, packages: st.packages }));
+    lastBoundsKey = ''; lastFocusId = null;
+    renderAll();
+    switchView('plan');
+  }
+  let tourActionId = null;
+  $('tourList').addEventListener('click', (e) => {
+    const open = e.target.closest('[data-tour]');
+    if (open) { const h = state.history.find((x) => x.id === open.dataset.tour); if (h && h.id !== state.tourId) loadTour(h); closeDrawer(); return; }
+    const more = e.target.closest('[data-tmore]');
+    if (more) {
+      const h = state.history.find((x) => x.id === more.dataset.tmore); if (!h) return;
+      tourActionId = h.id;
+      const d = parseISO(h.date);
+      $('tourDialogTitle').textContent = `${DAYS[d.getDay()]} ${d.getDate()} ${MONTHS_LONG[d.getMonth()]}`;
+      $('tourDialogSub').textContent = `${plural(h.stops.length, 'arrêt')}${h.route ? `, ${fmtKm(h.route.distance)}` : ''}`;
+      $('tourDialog').showModal();
+    }
+  });
+  $('tourDialog').addEventListener('close', () => {
+    const v = $('tourDialog').returnValue;
+    const h = state.history.find((x) => x.id === tourActionId);
+    tourActionId = null;
+    if (!h || v === 'cancel') return;
+    if (v === 'open') { if (h.id !== state.tourId) loadTour(h); closeDrawer(); }
+    else if (v === 'redo') { newTour(h.stops); if (h.start) state.start = h.start; renderAll(); closeDrawer(); toast(`${plural(h.stops.length, 'arrêt')} repris. Touchez Optimiser.`); }
+    else if (v === 'delete') {
+      state.history = state.history.filter((x) => x.id !== h.id);
+      if (h.id === state.tourId) { state.stops = []; state.route = null; newTour(); }
+      save(); renderDrawer(); toast('Tournée supprimée.');
+    }
+  });
+  $('drawerClose').addEventListener('click', closeDrawer);
+  $('drawerBack').addEventListener('click', closeDrawer);
+  $('drawerSettings').addEventListener('click', () => { closeDrawer(); switchView('settings'); if (sheetFrac < 0.5) setSheet(0.9); });
+  $('drawerHelp').addEventListener('click', () => $('helpDialog').showModal());
+  $('newTour').addEventListener('click', () => { newTour(); closeDrawer(); setSheet(0.9); $('stopInput').focus(); });
+
+  // ---------- Ajouter des arrêts : carte, scanner, voix ----------
+  $('addScan').addEventListener('click', openScan);
+  $('modeMap').addEventListener('click', () => { setSheet(SNAPS[0]); toast("Touchez la carte à l'endroit de l'arrêt."); });
+  let recognition = null;
+  function startVoice() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { $('stopInput').focus(); toast("Touchez le micro du clavier pour dicter l'adresse."); return; }
+    if (recognition) { recognition.stop(); return; }
+    recognition = new SR();
+    recognition.lang = /^fr/i.test(navigator.language) ? navigator.language : 'fr-BE';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    $('addVoice').classList.add('listening');
+    recognition.onresult = (e) => {
+      const t = e.results[0][0].transcript;
+      $('stopInput').value = t;
+      $('stopInput').dispatchEvent(new Event('input'));
+      $('stopInput').focus();
+    };
+    recognition.onerror = () => toast('Dictée impossible. Autorisez le micro ou tapez l\'adresse.');
+    recognition.onend = () => { recognition = null; $('addVoice').classList.remove('listening'); };
+    try { recognition.start(); toast("Dites l'adresse, par exemple : rue de la Vallée 2 Châtelineau."); }
+    catch (e) { recognition = null; $('addVoice').classList.remove('listening'); $('stopInput').focus(); }
+  }
+  $('addVoice').addEventListener('click', startVoice);
+  $('modeVoice').addEventListener('click', startVoice);
+  // « trouver des arrêts » : la saisie filtre aussi la liste
+  $('stopInput').addEventListener('input', (e) => { listQuery = e.target.value.trim(); renderPlan(); });
 
   // ---------- Recherche dans la liste ----------
   $('searchToggle').addEventListener('click', () => {
@@ -1244,18 +1394,14 @@
   $('endExport').addEventListener('click', () => $('exportCsv').click());
   $('endDialog').addEventListener('close', () => {
     if ($('endDialog').returnValue !== 'new') return;
-    const backup = JSON.stringify(state);
-    state.stops = []; state.route = null; state.found = [];
-    lastBoundsKey = '';
-    renderAll();
-    switchView('plan');
-    toast('Nouvelle tournée prête.', () => { state = JSON.parse(backup); renderAll(); switchView('run'); });
+    newTour();
+    toast('Tournée enregistrée dans le menu ≡. Nouvelle tournée prête.');
   });
 
   // ---------- Événements ----------
 
   attachSearch($('startInput'), $('startSuggest'), setStart);
-  attachSearch($('stopInput'), $('stopSuggest'), (it) => { addStop(it); $('stopInput').value = ''; });
+  attachSearch($('stopInput'), $('stopSuggest'), (it) => { addStop(it); $('stopInput').value = ''; listQuery = ''; renderPlan(); });
   attachSearch($('endInput'), $('endSuggest'), (it) => { state.end = { label: it.label, lat: it.lat, lon: it.lon }; $('endInput').value = ''; state.route = null; renderSettings(); renderAll(); });
 
   function locate() {
