@@ -1,4 +1,4 @@
-/* Kilivre : logique de l'application (sans framework). */
+/* Kiliroute : logique de l'application (sans framework). */
 (function () {
   'use strict';
 
@@ -112,6 +112,7 @@
   $('toastUndo').addEventListener('click', () => { $('toast').hidden = true; if (undoAction) undoAction(); undoAction = null; });
 
   // ---------- Animations (GSAP) : retours visuels aux gestes, rien de décoratif ----------
+  const SPLASH_ICON = `<g stroke="#fff" stroke-width="14" stroke-linecap="round"><path d="M30 104H74"/><path d="M44 136H86" opacity=".8"/><path d="M30 168H74" opacity=".6"/></g><g transform="translate(94 62)"><path d="M0 36 66 6 132 36 66 66Z" fill="#fff"/><path d="M0 36V112L66 142V66Z" fill="#fff" opacity=".82"/><path d="M132 36V112L66 142V66Z" fill="#fff" opacity=".64"/><path d="M33 21 99 51V76" fill="none" stroke="#1E62D6" stroke-width="10" stroke-linejoin="round"/></g>`;
   const anim = {
     on: () => !!window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     /** Ouverture : la pastille arrive, la coche se dessine, l'écran s'efface (moins d'une seconde). */
@@ -121,7 +122,7 @@
         const el = document.createElement('div');
         el.className = 'splash';
         el.setAttribute('aria-hidden', 'true');
-        el.innerHTML = '<div class="splash-in"><div class="splash-name">Kilivre</div><div class="splash-by">produit par Kilian.B</div></div>';
+        el.innerHTML = '<div class="splash-in"><div class="splash-name">Kiliroute</div><div class="splash-by">produit par Kilian.B</div></div>';
         document.body.appendChild(el);
         setTimeout(() => el.remove(), 1100);
         return;
@@ -129,15 +130,12 @@
       const el = document.createElement('div');
       el.className = 'splash';
       el.setAttribute('aria-hidden', 'true');
-      el.innerHTML = `<div class="splash-in"><svg viewBox="0 0 256 256"><path class="pill" d="${'M68 44H188A28 28 0 0 1 216 72V156A28 28 0 0 1 188 184H148L128 214 108 184H68A28 28 0 0 1 40 156V72A28 28 0 0 1 68 44Z'}"/><path class="tick" d="M93 105 121 133 171 83"/></svg><div class="splash-name">Kilivre</div><div class="splash-by">produit par Kilian.B</div></div>`;
+      el.innerHTML = `<div class="splash-in"><svg class="splash-icon" viewBox="0 0 256 256">${SPLASH_ICON}</svg><div class="splash-name">Kiliroute</div><div class="splash-by">produit par Kilian.B</div></div>`;
       document.body.appendChild(el);
-      const tick = el.querySelector('.tick');
-      const len = tick.getTotalLength();
-      gsap.set(tick, { strokeDasharray: len, strokeDashoffset: len });
       gsap.timeline({ onComplete: () => el.remove() })
-        .from(el.querySelector('svg'), { scale: 0.6, autoAlpha: 0, duration: 0.35, ease: 'back.out(2)', transformOrigin: '50% 50%' })
-        .to(tick, { strokeDashoffset: 0, duration: 0.3, ease: 'power2.out' }, '-=0.05')
-        .from(el.querySelector('.splash-name'), { y: 10, autoAlpha: 0, duration: 0.25 }, '<')
+        .from(el.querySelector('svg g:last-child'), { x: 40, autoAlpha: 0, duration: 0.4, ease: 'back.out(1.8)' })
+        .from(el.querySelectorAll('svg g:first-child path'), { x: -30, autoAlpha: 0, duration: 0.3, stagger: 0.06, ease: 'power2.out' }, '-=0.2')
+        .from(el.querySelector('.splash-name'), { y: 10, autoAlpha: 0, duration: 0.25 }, '-=0.1')
         .from(el.querySelector('.splash-by'), { autoAlpha: 0, duration: 0.3 }, '-=0.05')
         .to(el, { autoAlpha: 0, duration: 0.3, ease: 'power1.in' }, '+=0.5');
       // filet de sécurité : l'écran d'ouverture ne bloque jamais l'app
@@ -855,7 +853,7 @@
       document.body.appendChild(a); a.click(); a.remove();
     } else {
       window.location.href = url; // ouvre l'application (Waze, Google Maps)
-      // Si l'app n'est pas installée, l'iPhone reste sur Kilivre : on passe par le lien web.
+      // Si l'app n'est pas installée, l'iPhone reste sur Kiliroute : on passe par le lien web.
       const web = state.settings.navApp === 'google'
         ? `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`
         : `https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
@@ -1930,7 +1928,7 @@
   }
   const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
   const plug = (n) => (NATIVE && window.Capacitor.Plugins ? window.Capacitor.Plugins[n] : null);
-  /** L'écran ne se met jamais en veille tant que Kilivre est ouverte. */
+  /** L'écran ne se met jamais en veille tant que Kiliroute est ouverte. */
   async function keepScreenOn() {
     const KA = plug('KeepAwake');
     if (KA) { try { await KA.keepAwake(); } catch (e) { /* module absent */ } return; }
@@ -1950,7 +1948,7 @@
     const BG = plug('BackgroundGeolocation');
     if (BG) {
       const w = { native: true, id: null };
-      BG.addWatcher({ backgroundTitle: 'Kilivre : guidage en cours', backgroundMessage: 'Kilivre suit votre tournée.', requestPermissions: true, stale: false, distanceFilter: 0 }, (loc, err) => {
+      BG.addWatcher({ backgroundTitle: 'Kiliroute : guidage en cours', backgroundMessage: 'Kiliroute suit votre tournée.', requestPermissions: true, stale: false, distanceFilter: 0 }, (loc, err) => {
         if (err) { onErr({ code: err.code === 'NOT_AUTHORIZED' ? 1 : 2 }); return; }
         onPos({ coords: { latitude: loc.latitude, longitude: loc.longitude, speed: loc.speed, heading: loc.bearing, accuracy: loc.accuracy } });
       }).then((id) => { w.id = id; });

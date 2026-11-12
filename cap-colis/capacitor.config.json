@@ -1,6 +1,6 @@
 {
   "appId": "fr.capcolis.app",
-  "appName": "Kilivre",
+  "appName": "Kiliroute",
   "webDir": "www",
   "ios": {
     "contentInset": "never",

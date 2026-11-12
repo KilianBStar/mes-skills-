@@ -541,3 +541,6 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .shot span { position: absolute; top: 2px; right: 4px; color: #fff; font-size: 18px; text-shadow: 0 1px 3px #000; }
 .f-city { display: flex; align-items: center; gap: 8px; font-size: .9rem; color: var(--muted); }
 .f-city select { flex: 1; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--ink); font: inherit; }
+.splash .splash-icon { width: 150px; height: 150px; border-radius: 34px; background: rgba(255,255,255,.12); }
+.brand-badge svg path, .brand-badge svg g { stroke-width: inherit; }
+.splash-icon, .brand-badge svg { stroke: none; }

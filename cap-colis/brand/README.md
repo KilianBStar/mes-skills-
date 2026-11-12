@@ -1,4 +1,4 @@
-# Kilivre : logo et règles d'usage
+# Kiliroute : logo et règles d'usage
 
 ## L'idée
 La pastille d'arrêt de la carte, cochée : le colis est livré. Le livreur voit cette forme toute la journée dans l'app, le logo la reprend.

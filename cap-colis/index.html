@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Kilivre</title>
+<title>Kiliroute</title>
 <meta name="description" content="Planificateur de tournée pour livreur de colis : scannez le manifeste, optimisez l'ordre de passage, livrez arrêt par arrêt avec Waze.">
 <meta name="theme-color" content="#1E62D6">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Kilivre">
+<meta name="apple-mobile-web-app-title" content="Kiliroute">
 <meta name="format-detection" content="telephone=no">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
@@ -239,11 +239,11 @@
     <button class="icon-btn flat" id="drawerSettings" type="button" aria-label="Réglages"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></button>
   </div>
   <div class="drawer-brand">
-    <span class="brand-badge" aria-hidden="true"><svg viewBox="0 0 256 256"><path fill="#fff" fill-rule="evenodd" d="M68 44H188A28 28 0 0 1 216 72V156A28 28 0 0 1 188 184H148L128 214 108 184H68A28 28 0 0 1 40 156V72A28 28 0 0 1 68 44ZM84 116 104 96 122 114 160 76 180 96 122 154Z"/></svg></span>
-    <div><b>Kilivre</b><small id="drawerStats">Tournées enregistrées sur ce téléphone</small></div>
+    <span class="brand-badge" aria-hidden="true"><svg viewBox="0 0 256 256"><g stroke="#fff" stroke-width="14" stroke-linecap="round"><path d="M30 104H74"/><path d="M44 136H86" opacity=".8"/><path d="M30 168H74" opacity=".6"/></g><g transform="translate(94 62)"><path d="M0 36 66 6 132 36 66 66Z" fill="#fff"/><path d="M0 36V112L66 142V66Z" fill="#fff" opacity=".82"/><path d="M132 36V112L66 142V66Z" fill="#fff" opacity=".64"/><path d="M33 21 99 51V76" fill="none" stroke="#1E62D6" stroke-width="10" stroke-linejoin="round"/></g></svg></span>
+    <div><b>Kiliroute</b><small id="drawerStats">Tournées enregistrées sur ce téléphone</small></div>
   </div>
   <div class="drawer-list" id="tourList"></div>
-  <p class="drawer-by">Kilivre · produit par Kilian.B</p>
+  <p class="drawer-by">Kiliroute · produit par Kilian.B</p>
   <div class="drawer-foot">
     <button class="btn primary wide" id="newTour" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Créer un trajet</button>
   </div>
@@ -264,7 +264,7 @@
 
 <dialog id="helpDialog" class="dialog">
   <form method="dialog">
-    <h2>Utiliser Kilivre</h2>
+    <h2>Utiliser Kiliroute</h2>
     <ol class="help-list">
       <li><b>Ajoutez vos arrêts.</b> Scannez la liste du terminal ou les étiquettes, dictez une adresse, tapez-la ou touchez la carte.</li>
       <li><b>Optimisez.</b> L'app calcule l'ordre de passage et l'heure de fin, à 1 minute par arrêt.</li>
@@ -272,7 +272,7 @@
       <li><b>Terminez.</b> « Marquer le trajet comme terminé », puis exportez le bilan.</li>
     </ol>
     <p class="hint">Vos tournées restent sur ce téléphone. Retrouvez-les dans le menu ≡.</p>
-    <p class="hint">Kilivre, produit par Kilian.B</p>
+    <p class="hint">Kiliroute, produit par Kilian.B</p>
     <div class="dialog-actions"><span class="spacer"></span><button class="btn primary" value="ok">Compris</button></div>
   </form>
 </dialog>

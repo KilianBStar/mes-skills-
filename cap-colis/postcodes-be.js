@@ -1,5 +1,5 @@
 /*
- * Kilivre : codes postaux belges de la région de Charleroi et alentours → localités.
+ * Kiliroute : codes postaux belges de la région de Charleroi et alentours → localités.
  * La première localité est la commune (choix par défaut quand la ville manque).
  * À compléter si vous livrez ailleurs.
  */
