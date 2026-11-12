@@ -1,8 +1,8 @@
 // Service worker : garde l'application en cache pour l'ouvrir sans réseau.
 // Les adresses, itinéraires et fonds de carte passent toujours par le réseau.
-const CACHE = 'cap-colis-v2';
+const CACHE = 'cap-colis-v3';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'optimizer.js', 'scan.js', 'manifest.webmanifest',
-  'icon.svg', 'icon-180.png', 'icon-192.png', 'icon-512.png',
+  'icon.svg', 'favicon-32.png', 'icon-180.png', 'icon-192.png', 'icon-512.png',
   'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js',
   'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css'];
 // Bibliothèques gardées après leur premier usage (lecture des photos hors ligne ensuite).

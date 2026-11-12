@@ -375,7 +375,8 @@ code { font-size: .85em; background: var(--surface-2); padding: 1px 5px; border-
 }
 .drawer-brand b { display: block; font-size: 1.25rem; }
 .drawer-brand small { color: var(--muted); font-size: .92rem; }
-.brand-badge { width: 64px; height: 64px; flex: none; border-radius: 50%; display: grid; place-items: center; background: #fff; color: #161A22; font: 700 1.4rem/1 var(--font-display); border: 3px solid var(--brand); }
+.brand-badge { width: 64px; height: 64px; flex: none; border-radius: 16px; display: grid; place-items: center; background: #1E62D6; }
+.brand-badge svg { width: 44px; height: 44px; stroke: none; }
 .drawer-list { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 4px 0 12px; }
 .tour-group { padding: 18px 20px 6px; color: var(--muted); font-size: .95rem; font-weight: 500; border-top: 1px solid var(--line); }
 .tour-group:first-child { border-top: 0; }
