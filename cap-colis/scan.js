@@ -222,8 +222,9 @@
         if (!city || !after.some((l) => /colis/i.test(l))) continue;
         const name = i > 0 && !used.has(i - 1) && looksLikeName(lines[i - 1]) ? lines[i - 1] : '';
         used.add(i);
+        const ctx = out.length ? out[out.length - 1].address : '';
         const r = push('', pc, city, after, false, [name]);
-        if (r) r.incomplete = true;
+        if (r) { r.incomplete = true; r.ctx = ctx; }
         continue;
       }
       const extra = [];

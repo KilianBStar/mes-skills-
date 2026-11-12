@@ -7,7 +7,7 @@
   const SETTINGS_VERSION = 4;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'cap',
-    autoNav: true, radars: true, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: true,
+    autoNav: true, radars: true, satellite: true, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: true,
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
@@ -113,11 +113,20 @@
     on: () => !!window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
     /** Ouverture : la pastille arrive, la coche se dessine, l'écran s'efface (moins d'une seconde). */
     splash() {
-      if (!anim.on()) return;
+      if (!anim.on()) {
+        // sans animation : écran fixe une seconde, avec la signature
+        const el = document.createElement('div');
+        el.className = 'splash';
+        el.setAttribute('aria-hidden', 'true');
+        el.innerHTML = '<div class="splash-in"><div class="splash-name">Kilivre</div><div class="splash-by">produit par Kilian.B</div></div>';
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 1100);
+        return;
+      }
       const el = document.createElement('div');
       el.className = 'splash';
       el.setAttribute('aria-hidden', 'true');
-      el.innerHTML = `<div class="splash-in"><svg viewBox="0 0 256 256"><path class="pill" d="${'M68 44H188A28 28 0 0 1 216 72V156A28 28 0 0 1 188 184H148L128 214 108 184H68A28 28 0 0 1 40 156V72A28 28 0 0 1 68 44Z'}"/><path class="tick" d="M93 105 121 133 171 83"/></svg><div class="splash-name">Kilivre</div></div>`;
+      el.innerHTML = `<div class="splash-in"><svg viewBox="0 0 256 256"><path class="pill" d="${'M68 44H188A28 28 0 0 1 216 72V156A28 28 0 0 1 188 184H148L128 214 108 184H68A28 28 0 0 1 40 156V72A28 28 0 0 1 68 44Z'}"/><path class="tick" d="M93 105 121 133 171 83"/></svg><div class="splash-name">Kilivre</div><div class="splash-by">produit par Kilian.B</div></div>`;
       document.body.appendChild(el);
       const tick = el.querySelector('.tick');
       const len = tick.getTotalLength();
@@ -126,7 +135,8 @@
         .from(el.querySelector('svg'), { scale: 0.6, autoAlpha: 0, duration: 0.35, ease: 'back.out(2)', transformOrigin: '50% 50%' })
         .to(tick, { strokeDashoffset: 0, duration: 0.3, ease: 'power2.out' }, '-=0.05')
         .from(el.querySelector('.splash-name'), { y: 10, autoAlpha: 0, duration: 0.25 }, '<')
-        .to(el, { autoAlpha: 0, duration: 0.3, ease: 'power1.in' }, '+=0.15');
+        .from(el.querySelector('.splash-by'), { autoAlpha: 0, duration: 0.3 }, '-=0.05')
+        .to(el, { autoAlpha: 0, duration: 0.3, ease: 'power1.in' }, '+=0.5');
       // filet de sécurité : l'écran d'ouverture ne bloque jamais l'app
       setTimeout(() => el.remove(), 2500);
     },
@@ -301,6 +311,7 @@
       if (styleReady) return;
       styleReady = true;
       setupBuildings();
+      setupSatellite();
       setupRouteLayers();
       apply3D(false);
       renderMap();
@@ -336,6 +347,32 @@
       buildingLayers = ['cc-buildings-3d'];
     }
   }
+  // Photos aériennes officielles et gratuites : NGI (Belgique) et IGN (France). Licences ouvertes, attribution affichée.
+  const SAT = {
+    be: { tiles: ['https://cartoweb.wmts.ngi.be/1.0.0/orthoimage_coverage/default/3857/{z}/{y}/{x}.jpeg'], bounds: [2.38, 49.45, 6.45, 51.56], attribution: 'Orthophotos © NGI-IGN Belgique' },
+    fr: { tiles: ['https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}'], bounds: [-5.3, 41.2, 9.7, 51.2], attribution: 'Photographies aériennes © IGN France' },
+  };
+  function setupSatellite() {
+    const layers = map.getStyle().layers || [];
+    const firstSymbol = (layers.find((l) => l.type === 'symbol') || {}).id;
+    // la France d'abord, la Belgique par-dessus (les deux se chevauchent à la frontière)
+    for (const k of ['fr', 'be']) {
+      map.addSource(`sat-${k}`, { type: 'raster', tiles: SAT[k].tiles, tileSize: 256, maxzoom: 19, bounds: SAT[k].bounds, attribution: SAT[k].attribution });
+      map.addLayer({ id: `sat-${k}`, type: 'raster', source: `sat-${k}`, paint: { 'raster-fade-duration': 150 } }, firstSymbol);
+    }
+    applySatellite();
+  }
+  function applySatellite() {
+    const on = !!state.settings.satellite;
+    $('btnSat').textContent = on ? 'Plan' : 'Sat.';
+    $('btnSat').setAttribute('aria-label', on ? 'Afficher le plan' : 'Afficher les photos satellite');
+    $('app').classList.toggle('sat', on);
+    if (!map || !styleReady) return;
+    for (const k of ['fr', 'be']) if (map.getLayer(`sat-${k}`)) map.setLayoutProperty(`sat-${k}`, 'visibility', on ? 'visible' : 'none');
+    // en satellite, les maisons sont sur la photo : les volumes 3D sont masqués pour ne pas la cacher
+    for (const id of buildingLayers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', !on && state.settings.map3d ? 'visible' : 'none');
+  }
+
   function setupRouteLayers() {
     map.addSource('route', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
     const layout = { 'line-join': 'round', 'line-cap': 'round' };
@@ -348,7 +385,7 @@
     $('btn3d').textContent = on ? '2D' : '3D';
     $('btn3d').setAttribute('aria-label', on ? 'Passer la carte en 2D' : 'Passer la carte en 3D');
     if (!map) return;
-    if (styleReady) for (const id of buildingLayers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on ? 'visible' : 'none');
+    if (styleReady) for (const id of buildingLayers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on && !state.settings.satellite ? 'visible' : 'none');
     const opts = { pitch: on ? 60 : 0, bearing: on ? map.getBearing() : 0 };
     if (animate) map.easeTo({ ...opts, duration: 700 }); else map.jumpTo(opts);
   }
@@ -1107,8 +1144,9 @@
     for (const r of list) {
       let k = addrKey(r.address);
       if (!k) continue;
-      if (r.incomplete) k += `|${uid()}`; // « INCONNU » : chaque colis compte
-      else if (known.has(k)) continue;
+      // « INCONNU » sans rue : on le reconnaît grâce à l'adresse qui le précède sur la liste
+      if (r.incomplete) k += `|${addrKey(r.ctx || '')}|${addrKey(r.note || '')}`;
+      if (known.has(k)) continue;
       known.add(k);
       const dup = existing.has(k);
       state.found.push({
@@ -1194,6 +1232,11 @@
         <button type="button" class="f-del" aria-label="Retirer cette adresse">✕</button>
       </li>`).join('');
     $('scanAdd').textContent = checked ? `Ajouter ${plural(checked, 'arrêt')}` : 'Ajouter';
+    const photos = scanQueue.filter((q) => q.status === 'done').length;
+    const colis = f.filter((x) => x.checked).reduce((a, x) => a + (x.packages || 1), 0);
+    $('scanCount').textContent = f.length ? `${plural(photos, 'photo')} lue${photos > 1 ? 's' : ''} · ${plural(f.length, 'adresse')} · ${colis} colis` : '';
+    const cam = document.querySelector('label[for="camInput"]');
+    if (cam) cam.textContent = scanQueue.length ? 'Photographier l\'écran suivant' : 'Prendre une photo';
     $('scanAdd').disabled = !checked || geocodingFound;
     $('scanClearFound').hidden = !f.length;
   }
@@ -1269,6 +1312,11 @@
     if (state.stops.some((s) => s.status !== 'pending')) reoptimizeRemaining(); else optimize();
   });
   $('scanClose').addEventListener('click', () => $('scanDialog').close());
+  $('scanDialog').addEventListener('close', () => {
+    setTimeout(() => {
+      if (ocrWorker && !ocrBusy && !$('scanDialog').open) { ocrWorker.terminate().catch(() => {}); ocrWorker = null; }
+    }, 1000);
+  });
 
   // ---------- Panneau qu'on tire (3 hauteurs) ----------
   const SNAPS = [0.24, 0.52, 0.9];
@@ -1560,8 +1608,40 @@
       speechSynthesis.speak(u);
     } catch (e) { /* voix indisponible */ }
   }
+  const NATIVE = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+  const plug = (n) => (NATIVE && window.Capacitor.Plugins ? window.Capacitor.Plugins[n] : null);
+  /** L'écran ne se met jamais en veille tant que Kilivre est ouverte. */
   async function keepScreenOn() {
-    try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (e) { wakeLock = null; }
+    const KA = plug('KeepAwake');
+    if (KA) { try { await KA.keepAwake(); } catch (e) { /* module absent */ } return; }
+    if (wakeLock || document.hidden) return;
+    try {
+      if ('wakeLock' in navigator) {
+        wakeLock = await navigator.wakeLock.request('screen');
+        wakeLock.addEventListener('release', () => { wakeLock = null; });
+      }
+    } catch (e) { wakeLock = null; }
+  }
+  /**
+   * Suivi GPS. Dans l'app native, il continue écran verrouillé ou en arrière-plan
+   * (autorisation « Toujours »). Dans Safari, iOS l'arrête dès que l'app passe en arrière-plan.
+   */
+  function watchPosition(onPos, onErr) {
+    const BG = plug('BackgroundGeolocation');
+    if (BG) {
+      const w = { native: true, id: null };
+      BG.addWatcher({ backgroundTitle: 'Kilivre : guidage en cours', backgroundMessage: 'Kilivre suit votre tournée.', requestPermissions: true, stale: false, distanceFilter: 0 }, (loc, err) => {
+        if (err) { onErr({ code: err.code === 'NOT_AUTHORIZED' ? 1 : 2 }); return; }
+        onPos({ coords: { latitude: loc.latitude, longitude: loc.longitude, speed: loc.speed, heading: loc.bearing, accuracy: loc.accuracy } });
+      }).then((id) => { w.id = id; });
+      return w;
+    }
+    return navigator.geolocation.watchPosition(onPos, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  }
+  function clearPosition(w) {
+    if (w == null) return;
+    if (w.native) { const BG = plug('BackgroundGeolocation'); if (BG && w.id) BG.removeWatcher({ id: w.id }); }
+    else navigator.geolocation.clearWatch(w);
   }
 
   function navLayer(coords) {
@@ -1573,20 +1653,66 @@
       map.addLayer({ id: 'nav-line', type: 'line', source: 'nav', layout: { 'line-join': 'round', 'line-cap': 'round' }, paint: { 'line-color': '#3D8BFF', 'line-width': 8 } });
     } else map.getSource('nav').setData(data);
   }
-  function showMe(pos, bearing) {
+  // La flèche glisse d'une position GPS à la suivante pendant l'intervalle entre deux mesures :
+  // pas de saut, pas de retard visible, et rien ne tourne entre deux mesures (batterie).
+  let meAnim = null;
+  const angDiff = (a, b) => ((b - a + 540) % 360) - 180;
+  function showMe(pos, bearing, dur = 0) {
     if (!map) return;
     if (!meMarker) {
       const el = document.createElement('div');
       el.className = 'me';
       meMarker = new maplibregl.Marker({ element: el, rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat([pos.lon, pos.lat]).addTo(map);
+      meMarker._brg = bearing || 0;
     }
-    meMarker.setLngLat([pos.lon, pos.lat]);
-    if (bearing != null) meMarker.setRotation(bearing);
+    if (meAnim) cancelAnimationFrame(meAnim);
+    const from = meMarker.getLngLat(), b0 = meMarker._brg || 0;
+    const db = bearing != null ? angDiff(b0, bearing) : 0;
+    if (!dur || document.hidden) {
+      meMarker.setLngLat([pos.lon, pos.lat]); meMarker._brg = b0 + db; meMarker.setRotation(meMarker._brg); return;
+    }
+    const t0 = performance.now();
+    const step = (t) => {
+      const k = Math.min(1, (t - t0) / dur);
+      meMarker.setLngLat([from.lng + (pos.lon - from.lng) * k, from.lat + (pos.lat - from.lat) * k]);
+      // la rotation suit plus vite que le déplacement : un demi-tour se voit tout de suite
+      meMarker.setRotation(b0 + db * Math.min(1, k * 2.5));
+      if (k < 1) meAnim = requestAnimationFrame(step); else { meAnim = null; meMarker._brg = b0 + db; }
+    };
+    meAnim = requestAnimationFrame(step);
+  }
+  // Boussole du téléphone : oriente la flèche à l'arrêt ou au pas (iPhone : autorisation au premier guidage)
+  let compass = null, compassOn = false;
+  function onCompass(e) {
+    const h = e.webkitCompassHeading != null ? e.webkitCompassHeading : (e.alpha != null ? 360 - e.alpha : null);
+    if (h == null) return;
+    compass = h;
+    if (nav.active && !nav.arrived && meMarker && (nav.speed || 0) < 1.5 && !meAnim) {
+      const now = performance.now();
+      if (now - (onCompass.t || 0) > 250) { onCompass.t = now; meMarker._brg = (meMarker._brg || 0) + angDiff(meMarker._brg || 0, h); meMarker.setRotation(meMarker._brg); }
+    }
+  }
+  async function enableCompass() {
+    if (compassOn || !('DeviceOrientationEvent' in window)) return;
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const r = await DeviceOrientationEvent.requestPermission();
+        if (r !== 'granted') return;
+      }
+      window.addEventListener('deviceorientation', onCompass);
+      compassOn = true;
+    } catch (e) { /* boussole refusée : on se sert du GPS */ }
+  }
+  function disableCompass() {
+    if (!compassOn) return;
+    window.removeEventListener('deviceorientation', onCompass);
+    compassOn = false; compass = null;
   }
 
-  async function fetchNavRoute(from, to) {
+  async function fetchNavRoute(from, to, bearing) {
     const base = state.settings.osrm.replace(/\/+$/, '');
-    const r = await fetchJSON(`${base}/route/v1/driving/${from.lon.toFixed(6)},${from.lat.toFixed(6)};${to.lon.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&steps=true`, 15000);
+    const b = bearing != null ? `&bearings=${Math.round((bearing + 360) % 360)},60;` : '';
+    const r = await fetchJSON(`${base}/route/v1/driving/${from.lon.toFixed(6)},${from.lat.toFixed(6)};${to.lon.toFixed(6)},${to.lat.toFixed(6)}?overview=full&geometries=geojson&steps=true${b}`, 15000);
     if (r.code !== 'Ok' || !r.routes || !r.routes[0]) throw new Error(r.code || 'route');
     const route = r.routes[0];
     const coords = route.geometry.coordinates.map(([lon, lat]) => ({ lon, lat }));
@@ -1625,10 +1751,12 @@
   }
 
   async function startNav(stop) {
-    if (!navigator.geolocation) { toast('Ce téléphone ne donne pas sa position. Utilisez Waze.'); return; }
+    if (!navigator.geolocation && !plug('BackgroundGeolocation')) { toast('Ce téléphone ne donne pas sa position. Utilisez Waze.'); return; }
     stopNav(true);
     clearToast();
-    Object.assign(nav, { active: true, stop, route: null, seg: 0, off: 0, said: {}, arrived: false, fetching: false, follow: true, pos: null, lastK: -1, session: (nav.session || 0) + 1 });
+    Object.assign(nav, { active: true, stop, route: null, seg: 0, off: 0, said: {}, arrived: false, fetching: false, follow: true, pos: null, lastK: -1, session: (nav.session || 0) + 1, prev: null, heading: null, wrong: 0, lastFix: 0, uCheck: -Infinity, speed: 0 });
+    $('navUturn').hidden = true;
+    enableCompass();
     $('app').classList.add('navigating');
     document.body.classList.add('navigating');
     $('navTop').hidden = false; $('navBottom').hidden = false;
@@ -1642,14 +1770,13 @@
     $('navVoice').setAttribute('aria-pressed', String(nav.voice));
     keepScreenOn();
     speak(`Guidage vers ${splitLabel(stop.label).street}`); // le premier son doit partir d'un geste (iPhone)
-    nav.watch = navigator.geolocation.watchPosition(onNavPos, onNavErr, { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 });
+    // maximumAge 0 : jamais de position en cache, donc pas de retard dans les demi-tours
+    nav.watch = watchPosition(onNavPos, onNavErr);
   }
   function stopNav(silent) {
-    if (nav.watch != null) navigator.geolocation.clearWatch(nav.watch);
+    clearPosition(nav.watch);
     nav.watch = null;
     nav.active = false;
-    try { if (wakeLock) wakeLock.release(); } catch (e) { /* déjà libéré */ }
-    wakeLock = null;
     try { speechSynthesis.cancel(); } catch (e) { /* pas de voix */ }
     $('app').classList.remove('navigating');
     document.body.classList.remove('navigating');
@@ -1657,6 +1784,9 @@
     radarMarkers.forEach((m) => m.remove()); radarMarkers = [];
     navLayer(null);
     if (meMarker) { meMarker.remove(); meMarker = null; }
+    if (meAnim) { cancelAnimationFrame(meAnim); meAnim = null; }
+    disableCompass();
+    $('navUturn').hidden = true;
     if (!silent) { lastFocusId = null; focusCurrent(true); }
   }
   function onNavErr(err) {
@@ -1668,11 +1798,12 @@
     const session = nav.session, target = nav.stop;
     nav.fetching = true;
     let rt;
-    try { rt = await fetchNavRoute(pos, target); }
+    try { rt = await fetchNavRoute(pos, target, nav.heading); }
     catch (e) { rt = straightRoute(pos, target); }
     if (session !== nav.session || !nav.active) return; // guidage arrêté ou relancé entre-temps
     nav.route = rt;
-    nav.fetching = false; nav.seg = 0; nav.off = 0; nav.said = {};
+    nav.fetching = false; nav.seg = 0; nav.off = 0; nav.wrong = 0; nav.said = {};
+    $('navUturn').hidden = true;
     navLayer(nav.route.coords.map((c) => [c.lon, c.lat]));
     if (state.settings.radars) {
       loadRadars(nav.route.coords).then((list) => {
@@ -1688,6 +1819,16 @@
     const session = nav.session;
     const pos = { lat: p.coords.latitude, lon: p.coords.longitude };
     const speed = p.coords.speed || 0;
+    const tFix = performance.now();
+    const interval = nav.lastFix ? Math.min(1500, Math.max(250, tFix - nav.lastFix)) : 0;
+    nav.lastFix = tFix;
+    nav.speed = speed;
+    // cap réel : GPS en mouvement, sinon direction du dernier déplacement, sinon boussole
+    const moved = nav.prev ? dist(nav.prev, pos) : 0;
+    if (p.coords.heading != null && !isNaN(p.coords.heading) && speed > 1) nav.heading = p.coords.heading;
+    else if (moved > 4) nav.heading = bearingDeg(nav.prev, pos);
+    else if (compass != null && speed < 1) nav.heading = compass;
+    if (!nav.prev || moved > 2) nav.prev = pos;
     nav.pos = pos;
     if (!nav.route) { await reroute(pos); if (!nav.active || session !== nav.session) return; }
     const rt = nav.route;
@@ -1701,6 +1842,14 @@
       along = sn.along; seg = sn.seg; nav.seg = seg;
       if (sn.dist > 45) { nav.off++; if (nav.off >= 2) { speak('Recalcul de l\'itinéraire'); await reroute(pos); if (!nav.active || session !== nav.session) return; return onNavPos(p); } }
       else nav.off = 0;
+      // demi-tour sur la même rue : on roule à contresens de l'itinéraire → recalcul immédiat
+      const segBrg = bearingDeg(rt.coords[seg], rt.coords[Math.min(rt.coords.length - 1, seg + 1)]);
+      if (nav.heading != null && (speed > 1.5 || moved > 4) && Math.abs(angDiff(segBrg, nav.heading)) > 120) {
+        nav.wrong++;
+        if (nav.wrong >= 2) { await reroute(pos); if (!nav.active || session !== nav.session) return; return onNavPos(p); }
+      } else nav.wrong = 0;
+      // gagner du temps en faisant demi-tour ? (vérifié toutes les 90 s, pour la batterie et le serveur)
+      if (nav.heading != null && tFix - nav.uCheck > 90000) { nav.uCheck = tFix; checkUturn(pos, nav.heading, rt, session); }
     }
     // prochaine manœuvre devant soi
     let k = rt.steps.findIndex((st) => rt.cum[st.idx] > along + 8 && st.maneuver.type !== 'depart');
@@ -1730,20 +1879,49 @@
     $('navRemain').textContent = `${fmtDur(secs)} · ${fmtKm(remain)}`;
     // caméra qui suit, orientée dans le sens de la marche
     const nextPt = rt.coords[Math.min(rt.coords.length - 1, seg + 1)];
-    const brg = p.coords.heading != null && speed > 1.5 ? p.coords.heading : bearingDeg(pos, nextPt);
-    showMe(pos, brg);
-    if (nav.follow && map) {
+    const brg = nav.heading != null ? nav.heading : bearingDeg(pos, nextPt);
+    showMe(pos, brg, interval);
+    if (nav.follow && map && !document.hidden) {
+      // caméra au même rythme que la flèche (mouvement linéaire) : la flèche reste fixe à l'écran
       map.easeTo({
         center: [pos.lon, pos.lat], bearing: brg, pitch: state.settings.map3d ? 60 : 40, zoom: speed > 14 ? 16 : 17,
-        duration: 900, padding: { top: 190, bottom: 160, left: 0, right: 0 },
+        duration: interval || 600, easing: (t) => t, padding: { top: 190, bottom: 160, left: 0, right: 0 },
       });
     }
   }
+  /** Compare l'itinéraire devant soi et celui après un demi-tour ; propose le plus rapide. */
+  async function checkUturn(pos, heading, rt, session) {
+    if (rt.straight || nav.fetching) return;
+    try {
+      const back = await fetchNavRoute(pos, nav.stop, (heading + 180) % 360);
+      if (session !== nav.session || !nav.active || nav.route !== rt) return;
+      const along = snap(pos, rt).along;
+      const ahead = rt.total > 0 ? rt.duration * Math.max(0, rt.total - along) / rt.total : rt.duration;
+      const gain = ahead - (back.duration + 25); // ~25 s pour manœuvrer
+      if (gain >= 45) {
+        const min = Math.max(1, Math.round(gain / 60));
+        $('navUturn').hidden = false;
+        $('navUturn').innerHTML = `<svg viewBox="0 0 24 24"><path d="M15 21V9a5 5 0 0 0-10 0v3M2 9l3 3 3-3"/></svg><span>Demi-tour conseillé : ${min} min de gagnée${min > 1 ? 's' : ''}</span>`;
+        nav.uturnRoute = back;
+        speak(`Faites demi-tour dès que possible, vous gagnez ${min} minute${min > 1 ? 's' : ''}`);
+        if (navigator.vibrate) navigator.vibrate(120);
+      }
+    } catch (e) { /* serveur injoignable : pas de conseil */ }
+  }
+  $('navUturn').addEventListener('click', () => {
+    if (!nav.uturnRoute) return;
+    nav.route = nav.uturnRoute; nav.uturnRoute = null; nav.seg = 0; nav.wrong = 0; nav.said = {};
+    navLayer(nav.route.coords.map((c) => [c.lon, c.lat]));
+    $('navUturn').hidden = true;
+  });
+
   function navArrive() {
     if (nav.arrived) return;
     nav.arrived = true;
-    if (nav.watch != null) navigator.geolocation.clearWatch(nav.watch);
+    clearPosition(nav.watch);
     nav.watch = null;
+    disableCompass(); // boussole inutile à l'arrêt
+    $('navUturn').hidden = true;
     speak('Vous êtes arrivé');
     if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
     $('navTop').hidden = true; $('navRadar').hidden = true;
@@ -1769,7 +1947,9 @@
   $('navDone').addEventListener('click', () => { const s = nav.stop; stopNav(true); mark(s.id, 'done'); });
   $('navFail').addEventListener('click', () => { const s = nav.stop; stopNav(true); failId = s.id; $('failDialog').showModal(); });
   $('navSkip').addEventListener('click', () => { const s = nav.stop; stopNav(true); skip(s.id); });
-  document.addEventListener('visibilitychange', () => { if (!document.hidden && nav.active && !nav.arrived) keepScreenOn(); });
+  // écran allumé : au retour dans l'app et au premier geste (Safari exige parfois un geste)
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) keepScreenOn(); });
+  document.addEventListener('pointerdown', () => keepScreenOn(), { passive: true });
 
   // ---------- Tournée dans mon ordre (sans optimisation) ----------
   /** Recalcule la matrice de temps pour l'ordre actuel (serveur d'itinéraire, sinon estimation), puis les heures. */
@@ -1953,6 +2133,7 @@
     toast('Arrêts effacés.', () => { state = JSON.parse(backup); renderAll(); });
   });
   $('btn3d').addEventListener('click', () => { state.settings.map3d = !state.settings.map3d; save(); apply3D(true); });
+  $('btnSat').addEventListener('click', () => { state.settings.satellite = !state.settings.satellite; save(); applySatellite(); });
   $('btnFit').addEventListener('click', () => { lastFocusId = null; fitAll(); });
 
   document.addEventListener('click', (e) => {
@@ -2040,12 +2221,14 @@
   });
 
   // Heure de fin rafraîchie toutes les 30 s et au retour dans l'app (après Waze)
-  setInterval(() => { if (state.route) { renderTop(); if (currentView === 'run') renderRun(); } }, 30000);
+  setInterval(() => { if (state.route && !nav.active) { renderTop(); if (currentView === 'run') renderRun(); } }, 30000);
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state.route) { renderTop(); renderRun(); } });
 
   // ---------- Démarrage ----------
   anim.splash();
+  keepScreenOn();
   setSheet(sheetFrac);
+  applySatellite();
   initMap();
   renderSettings();
   renderAll();

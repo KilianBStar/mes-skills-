@@ -26,6 +26,7 @@
   <div id="map" class="map" role="region" aria-label="Carte de la tournée"></div>
   <button class="fab fab-menu" id="menuBtn" type="button" aria-label="Mes tournées" aria-haspopup="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
   <div class="fab-col">
+    <button class="fab" id="btnSat" type="button">Plan</button>
     <button class="fab" id="btn3d" type="button">2D</button>
     <button class="fab" id="btnFit" type="button" aria-label="Voir toute la tournée"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6.5 9 4l6 2.5L21 4v13.5L15 20l-6-2.5L3 20z"/><path d="M9 4v13.5M15 6.5V20"/></svg></button>
   </div>
@@ -41,6 +42,7 @@
     </div>
   </div>
   <div class="nav-radar" id="navRadar" hidden></div>
+  <button class="nav-uturn" id="navUturn" type="button" hidden></button>
   <button class="fab nav-recenter" id="navRecenter" type="button" hidden aria-label="Recentrer sur ma position"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 19 20l-7-4-7 4z"/></svg></button>
   <div class="nav-bottom" id="navBottom" hidden>
     <div class="nav-panel" id="navDriving">
@@ -224,6 +226,7 @@
     <div><b>Kilivre</b><small id="drawerStats">Tournées enregistrées sur ce téléphone</small></div>
   </div>
   <div class="drawer-list" id="tourList"></div>
+  <p class="drawer-by">Kilivre · produit par Kilian.B</p>
   <div class="drawer-foot">
     <button class="btn primary wide" id="newTour" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>Créer un trajet</button>
   </div>
@@ -252,6 +255,7 @@
       <li><b>Terminez.</b> « Marquer le trajet comme terminé », puis exportez le bilan.</li>
     </ol>
     <p class="hint">Vos tournées restent sur ce téléphone. Retrouvez-les dans le menu ≡.</p>
+    <p class="hint">Kilivre, produit par Kilian.B</p>
     <div class="dialog-actions"><span class="spacer"></span><button class="btn primary" value="ok">Compris</button></div>
   </form>
 </dialog>
@@ -276,7 +280,7 @@
       <h2 id="scanTitle">Scanner la tournée</h2>
       <button class="btn link" id="scanClose" type="button">Fermer</button>
     </div>
-    <p class="hint">Photographiez la liste de tournée de votre terminal (écran par écran) ou chaque étiquette. Cadrez l'étiquette de près, à plat, sans reflet. Vous pouvez ajouter des photos pendant la lecture.</p>
+    <p class="hint">Sur le Honeywell, ouvrez la liste des adresses et photographiez un écran (environ 5 adresses), faites défiler, photographiez le suivant, et ainsi de suite jusqu'au bout. Les adresses présentes sur deux photos ne comptent qu'une fois.</p>
     <div class="scan-buttons">
       <label class="btn primary" for="camInput">Prendre une photo</label>
       <input class="vh" id="camInput" type="file" accept="image/*" capture="environment">
@@ -292,6 +296,7 @@
     </div>
     <ul class="scan-queue" id="scanQueue"></ul>
     <p class="scan-busy" id="scanBusy" aria-live="polite"></p>
+    <p class="scan-count" id="scanCount"></p>
 
     <div class="list-head">
       <h3 id="foundTitle">Adresses trouvées</h3>

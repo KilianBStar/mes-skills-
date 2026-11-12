@@ -20,6 +20,10 @@ Application de tournée pour livreur de colis, pensée pour l'iPhone (testée au
 - Heure de fin affichée en grand et recalculée en direct pendant la tournée, à partir de l'heure qu'il est et des arrêts restants.
 
 **Livrer**
+- Vue satellite (par défaut) : photos aériennes officielles NGI (Belgique) et IGN (France), noms de rues par-dessus ; bouton Plan / Sat.
+- GPS sans retard : la flèche suit le cap réel (GPS, déplacement, boussole) et glisse entre deux positions ; un demi-tour sur la même rue relance l'itinéraire tout de suite. Conseil « Demi-tour conseillé : X min de gagnées » quand faire demi-tour est plus rapide.
+- Écran toujours allumé. App native (.ipa) : guidage même écran verrouillé ou en arrière-plan (localisation « Toujours »).
+- Démarrage : « Kilivre, produit par Kilian.B ».
 - « Passer l'optimisation » : la tournée démarre dans votre ordre de saisie, avec les heures calculées.
 - Adresse ajoutée en cours de tournée (saisie, voix, carte, scan) : elle se place à l'endroit où elle rallonge le moins le trajet, après l'arrêt vers lequel vous roulez.
 - Radars fixes (OpenStreetMap, mis à jour par la communauté, gardés 24 h sur le téléphone) : pastille rouge avec la limite, alerte vocale à 500 m, compteur de vitesse qui passe au rouge au-dessus de la limite. Les signalements en direct de Waze (police, radars mobiles) restent dans Waze : Waze ne les partage pas.

@@ -11,7 +11,9 @@
   },
   "dependencies": {
     "@capacitor/core": "8.5.3",
-    "@capacitor/ios": "8.5.3"
+    "@capacitor/ios": "8.5.3",
+    "@capacitor-community/background-geolocation": "1.3.0",
+    "@capacitor-community/keep-awake": "8.0.1"
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.3"
