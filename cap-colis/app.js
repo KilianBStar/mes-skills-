@@ -7,7 +7,7 @@
   const SETTINGS_VERSION = 7;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'cap',
-    autoNav: true, radars: true, satellite: false, region: 'be', startMode: 'gps', osrm: 'https://router.project-osrm.org', map3d: false,
+    autoNav: true, radars: true, satellite: false, region: 'be', startMode: 'gps', osrm: 'https://router.project-osrm.org', map3d: false, poiKey: '',
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
@@ -220,6 +220,33 @@
       type: f.properties.housenumber ? 'housenumber' : 'street',
     }));
   }
+  /**
+   * Magasins et entreprises de Belgique (TomTom : base commerciale à jour, 2 500 recherches gratuites par jour).
+   * OpenStreetMap ne connaît pas tous les commerces ; TomTom complète quand une clé est enregistrée.
+   */
+  let poiKeyWarned = false;
+  async function tomtom(q, limit) {
+    const key = (state.settings.poiKey || '').trim();
+    if (!key) return [];
+    const p = biasPoint();
+    try {
+      const r = await fetchJSON(`https://api.tomtom.com/search/2/search/${encodeURIComponent(q.replace(/[/\\?#]/g, ' '))}.json?key=${encodeURIComponent(key)}&countrySet=BE&language=fr-FR&typeahead=true&limit=${limit}&lat=${p.lat.toFixed(5)}&lon=${p.lon.toFixed(5)}&idxSet=POI,PAD,Addr,Str,Xstr`, 8000);
+      return (r.results || []).filter((x) => x.position && (!x.address || !x.address.countryCode || x.address.countryCode === 'BE')).map((x) => {
+        const a = x.address || {};
+        const street = [a.streetName, a.streetNumber].filter(Boolean).join(' ');
+        const city = [a.postalCode, a.municipalitySubdivision || a.municipality].filter(Boolean).join(' ');
+        const name = x.poi && x.poi.name;
+        return {
+          label: [name, street, city].filter(Boolean).join(', ') || a.freeformAddress,
+          lat: x.position.lat, lon: x.position.lon, poi: !!name,
+          type: a.streetNumber || name ? 'housenumber' : 'street',
+        };
+      });
+    } catch (e) {
+      if (/HTTP 40[13]/.test(String(e)) && !poiKeyWarned) { poiKeyWarned = true; toast('Clé TomTom refusée : vérifiez-la dans Réglages.'); }
+      return [];
+    }
+  }
   /** Tri façon livreur : numéro tapé → d'abord les adresses avec ce numéro ; puis les plus proches ; sans doublons. */
   function rankResults(q, list) {
     const num = (q.match(/\b(\d{1,4})[a-z]?\b/i) || [])[1];
@@ -233,6 +260,14 @@
       })
       .sort((a, b) => a.score - b.score).map((x) => x.r);
   }
+  /** Un nom de magasin tapé : les commerces TomTom d'abord ; sinon les deux sources alternées, sans doublon à moins de 30 m. */
+  function mergeResults(tt, ph) {
+    const out = [];
+    const near = (a, b) => Optimizer.haversine(a, b) < 30;
+    const push = (r) => { if (!out.some((o) => near(o, r) && o.label.split(',')[0].toLowerCase() === r.label.split(',')[0].toLowerCase())) out.push(r); };
+    for (let i = 0; i < Math.max(tt.length, ph.length); i++) { if (tt[i]) push(tt[i]); if (ph[i]) push(ph[i]); }
+    return out;
+  }
   async function geoSearch(q, limit = 5) {
     const country = countryFor(q);
     if (country === 'FR' || (country === '' && state.settings.region === 'fr')) {
@@ -243,7 +278,8 @@
       } catch (e) { /* on passe à Photon */ }
     }
     if (country === 'BE') {
-      let out = await photon(q, Math.max(limit, 8), BE_BBOX);
+      const [tt, ph] = await Promise.all([tomtom(q, Math.max(limit, 6)), photon(q, Math.max(limit, 8), BE_BBOX).catch((e) => (state.settings.poiKey ? [] : Promise.reject(e)))]);
+      let out = mergeResults(tt, ph);
       // OCR approximatif : on réessaie sans le numéro de boîte ni la ponctuation
       if (!out.length) out = await photon(q.replace(/\/\S+/g, '').replace(/[,;]/g, ' '), Math.max(limit, 8), BE_BBOX);
       return rankResults(q, out).slice(0, limit);
@@ -1076,6 +1112,7 @@
     $('setStartTime').disabled = !!st.startNow;
     $('setService').value = st.service;
     $('setOsrm').value = st.osrm;
+    $('setPoiKey').value = st.poiKey || '';
     $('setAutoNav').checked = !!st.autoNav;
     $('setRadars').checked = st.radars !== false;
     for (const name of ['endMode', 'navApp', 'region']) {
@@ -2557,6 +2594,7 @@
   $('setStartNow').addEventListener('change', (e) => { state.settings.startNow = e.target.checked; renderSettings(); save(); });
   $('setStartTime').addEventListener('change', (e) => { state.settings.startTime = e.target.value || '08:00'; save(); });
   $('setService').addEventListener('change', (e) => { state.settings.service = Math.max(0, Number(e.target.value) || 0); recomputeEtas(); renderAll(); });
+  $('setPoiKey').addEventListener('change', (e) => { state.settings.poiKey = e.target.value.trim(); poiKeyWarned = false; save(); toast(state.settings.poiKey ? 'Clé enregistrée : les magasins de Belgique sont dans la recherche.' : 'Clé retirée.'); });
   $('setOsrm').addEventListener('change', (e) => { state.settings.osrm = e.target.value.trim() || DEFAULT_SETTINGS.osrm; save(); });
   $('setAutoNav').addEventListener('change', (e) => { state.settings.autoNav = e.target.checked; save(); });
   $('setRadars').addEventListener('change', (e) => { state.settings.radars = e.target.checked; save(); });
