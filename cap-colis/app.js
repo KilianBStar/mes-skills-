@@ -1857,7 +1857,7 @@
     const rt = nav.route;
     if (!rt) return;
     const toStop = dist(pos, nav.stop);
-    if (toStop < 35) { navArrive(); return; }
+    if (toStop < 20) { navArrive(); return; }
     let along, seg;
     if (rt.straight) { rt.coords[0] = pos; rt.cum = [0, toStop]; rt.total = toStop; along = 0; seg = 0; }
     else {
@@ -1865,6 +1865,8 @@
       along = sn.along; seg = sn.seg; nav.seg = seg;
       if (sn.dist > 45) { nav.off++; if (nav.off >= 2) { speak('Recalcul de l\'itinéraire'); await reroute(pos); if (!nav.active || session !== nav.session) return; return onNavPos(p); } }
       else nav.off = 0;
+      // arrivée : bout de l'itinéraire atteint (devant le numéro, côté route)
+      if (rt.total - along < 15 && toStop < 70) { navArrive(); return; }
       // demi-tour sur la même rue : on roule à contresens de l'itinéraire → recalcul immédiat
       const segBrg = bearingDeg(rt.coords[seg], rt.coords[Math.min(rt.coords.length - 1, seg + 1)]);
       if (nav.heading != null && (speed > 1.5 || moved > 4) && Math.abs(angDiff(segBrg, nav.heading)) > 120) {
@@ -1891,7 +1893,11 @@
       if (toMan <= 400 && toMan > 120 && !nav.said[key + 'a']) { nav.said[key + 'a'] = 1; speak(`Dans ${spokenDist(toMan)}, ${text.charAt(0).toLowerCase()}${text.slice(1)}`); }
       else if (toMan <= 60 && !nav.said[key + 'b']) { nav.said[key + 'b'] = nav.said[key + 'a'] = 1; speak(text); }
     }
-    if (toStop < 120 && !nav.said.near) { nav.said.near = 1; speak('Votre arrêt est à 100 mètres'); }
+    if (toStop < 120 && !nav.said.near) {
+      nav.said.near = 1;
+      const num = houseNumber(nav.stop.label), side = arrivalSide(rt, pos);
+      speak(`${num ? `Le ${num}` : 'Votre arrêt'} est dans 100 mètres${side ? `, ${side}` : ''}`);
+    }
     const kmh = Math.round(speed * 3.6);
     $('navSpeed').textContent = p.coords.speed != null ? String(kmh) : '–';
     if (state.settings.radars) radarAlert(pos, along, kmh);
@@ -1940,6 +1946,26 @@
     $('navUturn').hidden = true;
   });
 
+  /** Numéro de maison de l'adresse (« Rue X 59 » ou « 59 rue X »). */
+  function houseNumber(label) {
+    const street = splitLabel(label).street;
+    const m = street.match(/(?:^|\s)(\d{1,4}\s?(?:bis|ter|[a-z])?)(?:\s*[/,]|$)/i) || street.match(/^(\d{1,4}\s?(?:bis|ter|[a-z])?)\b/i);
+    return m ? m[1].replace(/\s+/g, '') : '';
+  }
+  /** Côté de la rue où se trouve l'adresse : donné par la manœuvre d'arrivée, sinon calculé. */
+  function arrivalSide(rt, pos) {
+    const last = rt && rt.steps && rt.steps[rt.steps.length - 1];
+    const mod = last && last.maneuver && last.maneuver.type === 'arrive' ? last.maneuver.modifier || '' : '';
+    if (/right/.test(mod)) return 'à droite';
+    if (/left/.test(mod)) return 'à gauche';
+    if (!rt || rt.straight || rt.coords.length < 2 || !pos) return '';
+    const a = rt.coords[rt.coords.length - 2], b = rt.coords[rt.coords.length - 1];
+    const d = localXY(b, a), h = localXY(nav.stop, a);
+    const cross = d.x * h.y - d.y * h.x;
+    if (Math.abs(cross) < 1) return '';
+    return cross < 0 ? 'à droite' : 'à gauche';
+  }
+
   function navArrive() {
     if (nav.arrived) return;
     nav.arrived = true;
@@ -1947,7 +1973,9 @@
     nav.watch = null;
     disableCompass(); // boussole inutile à l'arrêt
     $('navUturn').hidden = true;
-    speak('Vous êtes arrivé');
+    const num = houseNumber(nav.stop.label), side = arrivalSide(nav.route, nav.pos);
+    speak(`Vous êtes arrivé${num ? `. Le ${num}` : ''}${side ? ` est ${side}` : ''}`);
+    $('navArrSide').textContent = [num ? `N° ${num}` : '', side ? `côté ${side.replace('à ', '')}` : ''].filter(Boolean).join(' · ');
     if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
     $('navTop').hidden = true; $('navRadar').hidden = true;
     $('navDriving').hidden = true; $('navArrived').hidden = false;

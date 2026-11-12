@@ -475,3 +475,5 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .house-pin { position: absolute; left: 50%; top: 50%; width: 22px; height: 22px; margin: -11px 0 0 -11px; border-radius: 50%; background: #1E62D6; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(30, 98, 214, .35), 0 2px 6px rgba(0, 0, 0, .5); }
 .house-src { position: absolute; right: 6px; bottom: 4px; font-size: 10px; color: #fff; text-shadow: 0 1px 2px #000; }
 .card .house { height: 120px; }
+.nav-arr-side { font: 500 1.9rem/1.15 var(--font-display); color: var(--ink); }
+.nav-arr-side:empty { display: none; }
