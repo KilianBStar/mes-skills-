@@ -4,10 +4,10 @@
 
   // ---------- État & persistance ----------
   const STORE_KEY = 'cap-colis-v1';
-  const SETTINGS_VERSION = 4;
+  const SETTINGS_VERSION = 5;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'cap',
-    autoNav: true, radars: true, satellite: true, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: true,
+    autoNav: true, radars: true, satellite: false, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: false,
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
@@ -26,6 +26,7 @@
         if ((old.v || 1) < 2) { s.settings.service = 1; s.settings.navApp = 'waze'; }
         if ((old.v || 1) < 3) s.settings.region = 'auto';
         if ((old.v || 1) < 4) s.settings.navApp = 'cap'; // GPS intégré demandé
+        if ((old.v || 1) < 5) { s.settings.satellite = false; s.settings.map3d = false; } // plan à plat avec les maisons
         s.settings.v = SETTINGS_VERSION;
         s.found = Array.isArray(s.found) ? s.found : [];
         s.seq = s.seq || 0;
@@ -331,21 +332,40 @@
   function mapUnavailable(msg) {
     $('map').innerHTML = `<div class="map-fallback">${esc(msg)}</div>`;
   }
+  // Maisons comme sur un plan de livreur : chaque bâtiment en contour fin, à plat (et en volume en mode 3D)
+  let footprintLayers = [];
   function setupBuildings() {
     const layers = map.getStyle().layers || [];
-    buildingLayers = layers.filter((l) => l.type === 'fill-extrusion').map((l) => l.id);
-    if (!buildingLayers.length && map.getSource('openmaptiles')) {
-      map.addLayer({
-        id: 'cc-buildings-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 13,
-        paint: {
-          'fill-extrusion-color': window.matchMedia('(prefers-color-scheme: dark)').matches ? '#3a4150' : '#d9d2c6',
-          'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
-          'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
-          'fill-extrusion-opacity': 0.85,
-        },
-      });
-      buildingLayers = ['cc-buildings-3d'];
+    // on remplace les bâtiments du style par les nôtres (plats + contour)
+    for (const l of layers) {
+      if (l['source-layer'] === 'building' && (l.type === 'fill' || l.type === 'fill-extrusion')) map.setLayoutProperty(l.id, 'visibility', 'none');
     }
+    if (!map.getSource('openmaptiles')) { buildingLayers = []; return; }
+    const dark = window.matchMedia('(prefers-color-scheme: dark)').matches && document.documentElement.dataset.theme !== 'light';
+    const inverted = $('app').classList.contains('map-invert');
+    // couleurs : sombre (gris bleuté + contour clair), clair, ou claires si la carte est inversée en CSS
+    const c = inverted ? { fill: '#d6d2ca', line: '#9d978c', ext: '#cfc9bf' }
+      : dark ? { fill: '#262b34', line: '#4f5767', ext: '#343a46' } : { fill: '#e7e3dc', line: '#b8b1a5', ext: '#d9d2c6' };
+    const firstSymbol = (layers.find((l) => l.type === 'symbol') || {}).id;
+    map.addLayer({ id: 'cc-buildings-fill', type: 'fill', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14, paint: { 'fill-color': c.fill, 'fill-opacity': ['interpolate', ['linear'], ['zoom'], 14, 0, 15, 1] } }, firstSymbol);
+    map.addLayer({ id: 'cc-buildings-line', type: 'line', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14, paint: { 'line-color': c.line, 'line-width': ['interpolate', ['linear'], ['zoom'], 15, 0.6, 18, 1.4] } }, firstSymbol);
+    map.addLayer({
+      id: 'cc-buildings-3d', type: 'fill-extrusion', source: 'openmaptiles', 'source-layer': 'building', minzoom: 14,
+      paint: {
+        'fill-extrusion-color': c.ext,
+        'fill-extrusion-height': ['coalesce', ['get', 'render_height'], 8],
+        'fill-extrusion-base': ['coalesce', ['get', 'render_min_height'], 0],
+        'fill-extrusion-opacity': 0.9,
+      },
+    }, firstSymbol);
+    footprintLayers = ['cc-buildings-fill', 'cc-buildings-line'];
+    buildingLayers = ['cc-buildings-3d'];
+  }
+  function applyBuildings() {
+    if (!map || !styleReady) return;
+    const sat = !!state.settings.satellite, d3 = !!state.settings.map3d;
+    for (const id of footprintLayers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', !sat && !d3 ? 'visible' : 'none');
+    for (const id of buildingLayers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', !sat && d3 ? 'visible' : 'none');
   }
   // Photos aériennes officielles et gratuites : NGI (Belgique) et IGN (France). Licences ouvertes, attribution affichée.
   const SAT = {
@@ -391,7 +411,7 @@
     if (!map || !styleReady) return;
     for (const k of ['fr', 'be']) if (map.getLayer(`sat-${k}`)) map.setLayoutProperty(`sat-${k}`, 'visibility', on ? 'visible' : 'none');
     // en satellite, les maisons sont sur la photo : les volumes 3D sont masqués pour ne pas la cacher
-    for (const id of buildingLayers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', !on && state.settings.map3d ? 'visible' : 'none');
+    applyBuildings();
   }
 
   function setupRouteLayers() {
@@ -406,7 +426,7 @@
     $('btn3d').textContent = on ? '2D' : '3D';
     $('btn3d').setAttribute('aria-label', on ? 'Passer la carte en 2D' : 'Passer la carte en 3D');
     if (!map) return;
-    if (styleReady) for (const id of buildingLayers) if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', on && !state.settings.satellite ? 'visible' : 'none');
+    applyBuildings();
     const opts = { pitch: on ? 60 : 0, bearing: on ? map.getBearing() : 0 };
     if (animate) map.easeTo({ ...opts, duration: 700 }); else map.jumpTo(opts);
   }
