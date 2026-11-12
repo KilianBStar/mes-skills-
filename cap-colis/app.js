@@ -4,10 +4,10 @@
 
   // ---------- État & persistance ----------
   const STORE_KEY = 'cap-colis-v1';
-  const SETTINGS_VERSION = 2;
+  const SETTINGS_VERSION = 3;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'waze',
-    autoNav: true, region: 'fr', osrm: 'https://router.project-osrm.org', map3d: true,
+    autoNav: true, region: 'auto', osrm: 'https://router.project-osrm.org', map3d: true,
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const TESSERACT_URL = 'https://cdn.jsdelivr.net/npm/tesseract.js@6.0.1/dist/tesseract.min.js';
@@ -22,7 +22,9 @@
       if (s && Array.isArray(s.stops)) {
         const old = s.settings || {};
         s.settings = Object.assign({}, DEFAULT_SETTINGS, old);
-        if ((old.v || 1) < 2) { s.settings.service = 1; s.settings.navApp = 'waze'; s.settings.v = SETTINGS_VERSION; }
+        if ((old.v || 1) < 2) { s.settings.service = 1; s.settings.navApp = 'waze'; }
+        if ((old.v || 1) < 3) s.settings.region = 'auto';
+        s.settings.v = SETTINGS_VERSION;
         s.found = Array.isArray(s.found) ? s.found : [];
         return s;
       }
@@ -81,19 +83,51 @@
   function photonLabel(p) {
     const street = [p.housenumber, p.street].filter(Boolean).join(' ');
     const first = p.name && p.name !== p.street ? p.name : street;
-    const parts = [first, first === street ? '' : street, [p.postcode, p.city].filter(Boolean).join(' '), p.country && p.country !== 'France' ? p.country : ''];
+    const parts = [first, first === street ? '' : street, [p.postcode, p.city || p.district].filter(Boolean).join(' '), p.countrycode && !['FR', 'BE'].includes(p.countrycode) ? p.country : ''];
     return parts.filter(Boolean).join(', ');
   }
+  // Belgique : emprise pour limiter la recherche OpenStreetMap
+  const BE_BBOX = '2.38,49.45,6.45,51.56';
+  function countryFor(q) {
+    const r = state.settings.region;
+    if (r === 'fr') return 'FR';
+    if (r === 'be') return 'BE';
+    if (r === 'world') return '';
+    return Scan.guessCountry(q) || (state.start && inBelgium(state.start) ? 'BE' : '');
+  }
+  function inBelgium(p) {
+    return p.lat > 49.45 && p.lat < 51.56 && p.lon > 2.38 && p.lon < 6.45 && !(p.lat < 50.1 && p.lon < 4.1) && !(p.lat < 51.1 && p.lon < 2.55);
+  }
+  async function photon(q, limit, bbox) {
+    const r = await fetchJSON(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}&lang=fr${biasParams()}${bbox ? `&bbox=${bbox}` : ''}`);
+    return (r.features || []).map((f) => ({
+      label: photonLabel(f.properties), lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0],
+      type: f.properties.housenumber ? 'housenumber' : 'street',
+    }));
+  }
   async function geoSearch(q, limit = 5) {
-    if (state.settings.region === 'fr') {
+    const country = countryFor(q);
+    if (country === 'FR' || (country === '' && state.settings.region === 'fr')) {
       try {
         const r = await fetchJSON(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&limit=${limit}&autocomplete=1${biasParams()}`);
         const out = (r.features || []).map((f) => ({ label: f.properties.label, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], score: f.properties.score, type: f.properties.type }));
         if (out.length) return out;
       } catch (e) { /* on passe à Photon */ }
     }
-    const r = await fetchJSON(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=${limit}&lang=fr${biasParams()}`);
-    return (r.features || []).map((f) => ({ label: photonLabel(f.properties), lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], type: f.properties.housenumber ? 'housenumber' : 'street' }));
+    if (country === 'BE') {
+      let out = await photon(q, limit, BE_BBOX);
+      // OCR approximatif : on réessaie sans le numéro de boîte ni la ponctuation
+      if (!out.length) out = await photon(q.replace(/\/\S+/g, '').replace(/[,;]/g, ' '), limit, BE_BBOX);
+      return out;
+    }
+    try {
+      return await photon(q, limit, '');
+    } catch (e) {
+      if (country) throw e;
+      // sans indice de pays : dernier recours, la base d'adresses française
+      const r = await fetchJSON(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&limit=${limit}&autocomplete=1${biasParams()}`);
+      return (r.features || []).map((f) => ({ label: f.properties.label, lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], score: f.properties.score, type: f.properties.type }));
+    }
   }
   async function geoReverse(lat, lon) {
     try {
@@ -844,20 +878,18 @@
         px[i] = px[i + 1] = px[i + 2] = g;
       }
       ctx.putImageData(data, 0, 0);
-      const out = deskew(c);
       const t = document.createElement('canvas');
       const ts = 96 / Math.max(w, h);
       t.width = Math.round(w * ts); t.height = Math.round(h * ts);
-      t.getContext('2d').drawImage(out, 0, 0, t.width, t.height);
-      return { canvas: out, thumb: t.toDataURL('image/jpeg', 0.7) };
+      t.getContext('2d').drawImage(c, 0, 0, t.width, t.height);
+      return { canvas: c, thumb: t.toDataURL('image/jpeg', 0.7) };
     } finally {
       URL.revokeObjectURL(url);
     }
   }
 
-  /** Redresse une photo penchée : la lecture échoue souvent au-delà de 2 ou 3 degrés. */
-  function deskew(c) {
-    const s = Math.min(1, 700 / Math.max(c.width, c.height));
+  function grayOf(c, maxSide) {
+    const s = Math.min(1, maxSide / Math.max(c.width, c.height));
     const sw = Math.max(1, Math.round(c.width * s)), sh = Math.max(1, Math.round(c.height * s));
     const small = document.createElement('canvas');
     small.width = sw; small.height = sh;
@@ -866,6 +898,46 @@
     const px = sctx.getImageData(0, 0, sw, sh).data;
     const gray = new Uint8ClampedArray(sw * sh);
     for (let i = 0; i < gray.length; i++) gray[i] = px[i * 4];
+    return { gray, sw, sh, s };
+  }
+  /** Recadre sur l'étiquette blanche et l'agrandit (une étiquette sur un carton n'occupe qu'une partie de la photo). */
+  function cropLabel(c) {
+    const { gray, sw, sh, s } = grayOf(c, 400);
+    const r = Scan.findBrightRegion(gray, sw, sh);
+    if (!r) return null;
+    const x = r.x / s, y = r.y / s, w = r.w / s, h = r.h / s;
+    const k = Math.min(3, 2200 / Math.max(w, h));
+    const out = document.createElement('canvas');
+    out.width = Math.round(w * k); out.height = Math.round(h * k);
+    const octx = out.getContext('2d');
+    octx.imageSmoothingQuality = 'high';
+    octx.drawImage(c, x, y, w, h, 0, 0, out.width, out.height);
+    return out;
+  }
+  /** Tourne d'un quart de tour (étiquette photographiée de côté). */
+  function rotateCanvas(c, deg) {
+    if (!deg) return c;
+    const r = document.createElement('canvas');
+    const side = deg % 180 !== 0;
+    r.width = side ? c.height : c.width; r.height = side ? c.width : c.height;
+    const rctx = r.getContext('2d');
+    rctx.translate(r.width / 2, r.height / 2);
+    rctx.rotate((deg * Math.PI) / 180);
+    rctx.drawImage(c, -c.width / 2, -c.height / 2);
+    return r;
+  }
+  async function readCanvas(worker, c) {
+    const { data } = await worker.recognize(c, {}, { text: true, blocks: true });
+    const words = [], lines = [];
+    for (const b of data.blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) { lines.push(l); words.push(...(l.words || [])); }
+    let found = Scan.extractAddresses(Scan.rowsFromWords(words, lines));
+    if (!found.length) found = Scan.extractAddresses(data.text || '');
+    return found;
+  }
+
+  /** Redresse une photo penchée : la lecture échoue souvent au-delà de 2 ou 3 degrés. */
+  function deskew(c) {
+    const { gray, sw, sh } = grayOf(c, 700);
     const deg = Scan.estimateSkew(gray, sw, sh);
     if (Math.abs(deg) < 0.5) return c;
     const a = (-deg * Math.PI) / 180;
@@ -888,11 +960,16 @@
     const existing = new Set(state.stops.map((s) => addrKey(s.label)));
     let added = 0;
     for (const r of list) {
-      const k = addrKey(r.address);
-      if (!k || known.has(k)) continue;
+      let k = addrKey(r.address);
+      if (!k) continue;
+      if (r.incomplete) k += `|${uid()}`; // « INCONNU » : chaque colis compte
+      else if (known.has(k)) continue;
       known.add(k);
       const dup = existing.has(k);
-      state.found.push({ id: uid(), address: r.address, note: r.note || '', packages: r.packages || 1, sure: !!r.sure, checked: !dup, source, error: dup ? 'Déjà dans la tournée' : '' });
+      state.found.push({
+        id: uid(), address: r.address, note: r.note || '', packages: r.packages || 1, sure: !!r.sure, incomplete: !!r.incomplete,
+        checked: !dup && !r.incomplete, source, error: dup ? 'Déjà dans la tournée' : '',
+      });
       added++;
     }
     save();
@@ -913,13 +990,15 @@
           item.thumb = thumb;
           item.file = null; // libère la mémoire
           const worker = await getOcrWorker();
-          item.status = 'reading'; item.progress = 0;
-          renderQueue();
-          const { data } = await worker.recognize(canvas, {}, { text: true, blocks: true });
-          const words = [], lines = [];
-          for (const b of data.blocks || []) for (const p of b.paragraphs || []) for (const l of p.lines || []) { lines.push(l); words.push(...(l.words || [])); }
-          let found = Scan.extractAddresses(Scan.rowsFromWords(words, lines));
-          if (!found.length) found = Scan.extractAddresses(data.text || '');
+          // Essais successifs : étiquette recadrée, puis tournée d'un quart de tour, puis photo entière.
+          const crop = cropLabel(canvas);
+          const attempts = crop ? [[crop, 0], [crop, 90], [crop, 270], [canvas, 0]] : [[canvas, 0], [canvas, 90], [canvas, 270]];
+          let found = [];
+          for (let a = 0; a < attempts.length && !found.length; a++) {
+            item.status = 'reading'; item.progress = 0; item.attempt = a + 1;
+            renderQueue();
+            found = await readCanvas(worker, deskew(rotateCanvas(attempts[a][0], attempts[a][1])));
+          }
           item.count = addFound(found, item.name);
           item.status = 'done';
         } catch (e) {
@@ -947,7 +1026,7 @@
   function renderQueue() {
     $('scanQueue').innerHTML = scanQueue.map((q) => {
       let txt = { waiting: 'En attente', prep: 'Préparation…' }[q.status] || '';
-      if (q.status === 'reading') txt = `Lecture ${q.progress || 0} %`;
+      if (q.status === 'reading') txt = `Lecture ${q.progress || 0} %${q.attempt > 1 ? ` (essai ${q.attempt})` : ''}`;
       if (q.status === 'done') txt = q.count ? `${plural(q.count, 'adresse')} trouvée${q.count > 1 ? 's' : ''}` : 'Aucune nouvelle adresse';
       if (q.status === 'error') txt = q.error;
       return `<li class="q-item q-${q.status}">${q.thumb ? `<img src="${q.thumb}" alt="">` : '<span class="q-ph"></span>'}<span><b>${esc(q.name)}</b><br>${esc(txt)}</span></li>`;
@@ -965,7 +1044,7 @@
         <input type="checkbox" class="f-check" aria-label="Garder cette adresse" ${x.checked ? 'checked' : ''}>
         <div class="f-body">
           <input type="text" class="f-addr" value="${esc(x.address)}" aria-label="Adresse" autocomplete="off">
-          <div class="f-meta">${x.packages > 1 ? `<span class="pill">${x.packages} colis</span>` : ''}${!x.sure ? '<span class="pill window">À vérifier</span>' : ''}${x.error ? `<span class="pill late">${esc(x.error)}</span>` : ''}${x.note ? `<span class="meta-note">${esc(x.note)}</span>` : ''}</div>
+          <div class="f-meta">${x.packages > 1 ? `<span class="pill">${x.packages} colis</span>` : ''}${x.incomplete ? '<span class="pill late">Rue manquante : complétez</span>' : !x.sure ? '<span class="pill window">À vérifier</span>' : ''}${x.error ? `<span class="pill late">${esc(x.error)}</span>` : ''}${x.note ? `<span class="meta-note">${esc(x.note)}</span>` : ''}</div>
         </div>
         <button type="button" class="f-del" aria-label="Retirer cette adresse">✕</button>
       </li>`).join('');
@@ -979,7 +1058,7 @@
     const li = e.target.closest('[data-fid]'); if (!li) return;
     const x = state.found.find((f) => f.id === li.dataset.fid); if (!x) return;
     if (e.target.classList.contains('f-check')) x.checked = e.target.checked;
-    if (e.target.classList.contains('f-addr')) { x.address = e.target.value.trim(); x.error = ''; x.sure = true; x.checked = true; }
+    if (e.target.classList.contains('f-addr')) { x.address = e.target.value.trim(); x.error = ''; x.sure = true; x.incomplete = false; x.checked = true; }
     save(); renderFound();
   });
   $('foundList').addEventListener('click', (e) => {
@@ -1003,7 +1082,7 @@
           const res = await geoSearch(f.address, 1);
           const g = res[0];
           if (!g) { f.error = 'Introuvable : corrigez l\'adresse'; continue; }
-          const weak = (g.score != null && g.score < 0.5) || (g.type && g.type !== 'housenumber' && /^\s*\d/.test(f.address));
+          const weak = (g.score != null && g.score < 0.5) || (g.type && g.type !== 'housenumber' && Scan.hasHouseNumber(f.address.split(',')[0]));
           addStop(g, { note: f.note, packages: f.packages, check: weak || !f.sure, silent: true });
           f.added = true; f.error = ''; ok++;
         } catch (e) {
@@ -1136,25 +1215,25 @@
     setTimeout(() => URL.revokeObjectURL(url), 1500);
   });
 
-  // Tournée d'exemple (lieux réels de Lyon, coordonnées approximatives)
+  // Tournée d'exemple (lieux publics de la région de Charleroi, coordonnées approximatives)
   $('loadDemo').addEventListener('click', () => {
     const demo = [
-      ['Place Bellecour, 69002 Lyon', 45.7578, 4.8320],
-      ['12 Rue Mercière, 69002 Lyon', 45.7622, 4.8318],
-      ['Place des Terreaux, 69001 Lyon', 45.7673, 4.8336],
-      ['Gare de Lyon-Part-Dieu, 69003 Lyon', 45.7606, 4.8596],
-      ['Parc de la Tête d\'Or, 69006 Lyon', 45.7772, 4.8556],
-      ['Place Jean Macé, 69007 Lyon', 45.7457, 4.8424],
-      ['Musée des Confluences, 69002 Lyon', 45.7326, 4.8180],
-      ['Boulevard de la Croix-Rousse, 69004 Lyon', 45.7746, 4.8306],
-      ['Avenue Jean Jaurès, 69007 Lyon', 45.7489, 4.8434],
-      ['Cours Lafayette, 69003 Lyon', 45.7638, 4.8521],
-      ['Place Guichard, 69003 Lyon', 45.7594, 4.8469],
-      ['Rue de la République, 69002 Lyon', 45.7625, 4.8357],
+      ['Place Charles II, 6000 Charleroi', 50.4114, 4.4446],
+      ['Gare de Charleroi-Central, 6000 Charleroi', 50.4045, 4.4386],
+      ['Place de la Digue, 6000 Charleroi', 50.4069, 4.4497],
+      ['Grand-Place, 6200 Châtelet', 50.4040, 4.5250],
+      ['Gare de Châtelineau, 6200 Châtelineau', 50.4140, 4.5170],
+      ['Place de Montignies, 6061 Montignies-sur-Sambre', 50.4090, 4.4900],
+      ['Place Albert Ier, 6001 Marcinelle', 50.3920, 4.4370],
+      ['Place Communale, 6041 Gosselies', 50.4690, 4.4320],
+      ['Place du Ballon, 6040 Jumet', 50.4420, 4.4280],
+      ['Place Communale, 6010 Couillet', 50.3900, 4.4700],
+      ['Place de Gilly, 6060 Gilly', 50.4210, 4.4800],
+      ['Place de Leernes, 6142 Leernes', 50.3960, 4.3640],
     ];
-    state.start = { label: 'Dépôt (exemple), Gerland, 69007 Lyon', lat: 45.7316, lon: 4.8320 };
+    state.start = { label: 'Dépôt (exemple), 6220 Fleurus', lat: 50.4840, lon: 4.5500 };
     state.stops = demo.map(([label, lat, lon]) => newStop({ label, lat, lon }));
-    state.stops[3].note = 'Exemple : point relais, demander l\'accueil';
+    state.stops[3].note = 'Exemple : boîte 6, sonner chez le voisin si absent';
     state.stops[3].packages = 4;
     state.stops[6].group = 2;
     state.route = null; lastBoundsKey = '';

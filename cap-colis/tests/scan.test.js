@@ -82,3 +82,69 @@ test("estime l'inclinaison d'une photo de document", () => {
     assert.ok(Math.abs(est - deg) <= 0.6, `attendu ${deg}°, estimé ${est}°`);
   }
 });
+
+// ---------- Belgique (noms inventés, formats copiés sur des étiquettes Colis Privé) ----------
+test('liste de tournée du terminal (Belgique)', () => {
+  const t = `TOTAL P1 RELAIS LOCKER COLLECTE\nCHARGÉS 156 156 19 0\nMARC DURAND\nRUE DES ÉRABLES 22\n6061 MONTIGNIES-SUR-SAMBRE\nNombre de colis : 1\nType : DOMICILE\nLINA PEETERS\nRUE DU MOULIN 52\n6061 CHARLEROI\nNombre de colis : 2\nType : DOMICILE\nINCONNU\n6061 MONTIGNIES-SUR-SAMBRE\nNombre de colis : 1\nType : DOMICILE`;
+  const r = S.extractAddresses(t);
+  assert.deepStrictEqual(r.map((x) => x.address), ['RUE DES ÉRABLES 22, 6061 MONTIGNIES-SUR-SAMBRE', 'RUE DU MOULIN 52, 6061 CHARLEROI', '6061 MONTIGNIES-SUR-SAMBRE']);
+  assert.strictEqual(r[0].note, 'MARC DURAND');
+  assert.strictEqual(r[1].packages, 2);
+  assert.strictEqual(r[1].country, 'BE');
+  assert.ok(r[0].sure);
+  assert.ok(r[2].incomplete, 'INCONNU : rue manquante');
+});
+
+test('étiquette Amazon : ville avant le code postal, expéditeur ignoré', () => {
+  const t = `colis privé SAME\n40 6060\nAmazon Returns\nSchoondonkweg 4\nWillebroek Belgium 2830\nBelgium\nSHIP TO:\nMARTIN\nRue de la Gare 2\nChâtelineau 6200\nBelgium\n04/11/2026\n780018700000B6200`;
+  const r = S.extractAddresses(t);
+  assert.deepStrictEqual(r.map((x) => x.address), ['Rue de la Gare 2, 6200 Châtelineau']);
+  assert.strictEqual(r[0].note, 'MARTIN');
+});
+
+test('numéro avec boîte et virgule (25/1/1, 27/6)', () => {
+  const a = S.extractAddresses('SHIP TO:\nlambert paul\nrue des Tilleuls, 25/1/1\nChâtelineau 6200\nBelgium');
+  assert.strictEqual(a[0].address, 'rue des Tilleuls 25, 6200 Châtelineau');
+  assert.match(a[0].note, /Boîte 1\/1/);
+  const b = S.extractAddresses('ANNE DUBOIS\nRUE DE LA FONTAINE 27/6\n6200 CHATELET\nBELGIQUE\nTEL : 0470123456');
+  assert.strictEqual(b[0].address, 'RUE DE LA FONTAINE 27, 6200 CHATELET');
+  assert.match(b[0].note, /Boîte 6/);
+  assert.match(b[0].note, /0470123456/);
+});
+
+test('étiquette 24H domicile : code de tri « 40 6040 NEXT » ignoré', () => {
+  const t = `Expéditeur :\nATLAS (QM05)\n33 BD DE LA HAIE\n35136 ST JACQUES DE LA LANDE\nBE 40 6040 NEXT\nPAUL LEROY\n43 RUE DES ÉCOLES\n6142 LEERNES\nBELGIQUE\nTEL : 0485000000\nRéf : 7035407001\nPoids : 1044 grs\nEditée le : 27/10/2026`;
+  const r = S.extractAddresses(t);
+  assert.deepStrictEqual(r.map((x) => x.address), ['43 RUE DES ÉCOLES, 6142 LEERNES']);
+  assert.match(r[0].note, /PAUL LEROY/);
+});
+
+test('code postal répété autour de la ville (6142 leernes 6142)', () => {
+  const r = S.extractAddresses('SHIP TO:\nsimon julie\nrue des Prés 32\n6142 leernes 6142\nBelgium');
+  assert.deepStrictEqual(r.map((x) => x.address), ['rue des Prés 32, 6142 leernes']);
+});
+
+test('pays deviné à partir du code postal', () => {
+  assert.strictEqual(S.guessCountry('Rue de la Gare 2, 6200 Châtelineau'), 'BE');
+  assert.strictEqual(S.guessCountry('12 rue Mercière, 69002 Lyon'), 'FR');
+  assert.strictEqual(S.guessCountry('Gare Part-Dieu'), '');
+});
+
+test("repère l'étiquette blanche sur le carton", () => {
+  const w = 300, h = 200;
+  const g = new Uint8ClampedArray(w * h).fill(120); // carton
+  for (let y = 60; y < 150; y++) for (let x = 100; x < 260; x++) g[y * w + x] = (x % 9 === 0 && y % 7 < 3) ? 20 : 240; // étiquette + texte
+  const r = S.findBrightRegion(g, w, h);
+  assert.ok(r && r.x <= 100 && r.x >= 90 && r.y <= 60 && r.x + r.w >= 259 && r.y + r.h >= 149, JSON.stringify(r));
+  assert.strictEqual(S.findBrightRegion(new Uint8ClampedArray(w * h).fill(240), w, h), null, 'feuille plein cadre : pas de recadrage');
+});
+
+test('bruit OCR après le numéro (format belge) coupé', () => {
+  const r = S.extractAddresses('SHIP TO:\nmartin\nRue de la Gare 2 Fee are mer re\nChâtelineau 6200');
+  assert.strictEqual(r[0].address, 'Rue de la Gare 2, 6200 Châtelineau');
+  const b = S.extractAddresses('ANNE DUBOIS\nRUE DE LA FONTAINE 27/5 (À\n6200 CHATELET');
+  assert.strictEqual(b[0].address, 'RUE DE LA FONTAINE 27, 6200 CHATELET');
+  assert.match(b[0].note, /Boîte 5/);
+  const c = S.extractAddresses('12 rue Mercière 69002 LYON');
+  assert.strictEqual(c[0].address, '12 rue Mercière, 69002 LYON', 'format français intact');
+});

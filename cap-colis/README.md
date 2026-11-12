@@ -5,10 +5,12 @@ Application de tournée pour livreur de colis, pensée pour l'iPhone (testée au
 ## Ce qu'elle fait
 
 **Scanner la tournée**
-- Photographiez chaque page du manifeste, ou chaque étiquette de colis : 1 photo ou 20, peu importe. L'app lit les photos l'une après l'autre pendant que vous continuez à photographier.
-- L'app redresse les photos penchées, lit les tableaux ligne par ligne et récupère l'adresse, le nom du destinataire, le téléphone et le complément (bâtiment, étage).
+- Adresses belges et françaises : code postal à 4 ou 5 chiffres, numéro avant ou après la rue, boîte (« 27/6 »), ville avant ou après le code postal.
+- Photographiez la liste de tournée de votre terminal (Honeywell, écran par écran) ou chaque étiquette de colis : 1 photo ou 20, peu importe. L'app lit les photos l'une après l'autre pendant que vous continuez à photographier.
+- L'app recadre l'étiquette blanche, tourne la photo si vous l'avez prise de côté, redresse l'inclinaison et récupère l'adresse, le nom, le téléphone, le nombre de colis et la boîte.
+- Elle ignore l'adresse de l'expéditeur (Amazon Returns, Willebroek) et les codes de tri (« 40 6060 NEXT »). Un colis « INCONNU » sans rue arrive non coché, avec la mention « Rue manquante ».
 - Vous relisez la liste, corrigez une adresse d'un doigt, puis touchez « Ajouter ». L'app marque « À vérifier » les adresses dont elle doute.
-- Autre méthode : dans l'appareil photo de l'iPhone, Texte en direct, Tout sélectionner, Copier, puis « Coller du texte » dans l'app.
+- Étiquette froissée ou mal imprimée : Texte en direct de l'iPhone la lit mieux. Dans Appareil photo, Texte en direct, Tout sélectionner, Copier, puis « Coller du texte » dans l'app.
 
 **Optimiser**
 - 1 minute par arrêt par défaut (modifiable, et réglable arrêt par arrêt).
@@ -41,7 +43,7 @@ Apple interdit d'installer une app non signée. Deux façons de la signer :
 - **99 €/an** : un compte Apple Developer, puis TestFlight. L'app s'installe et se met à jour comme une app de l'App Store.
 
 ## Services utilisés (gratuits, sans clé)
-- Adresses : Géoplateforme IGN (Base Adresse Nationale), Photon (OpenStreetMap) en secours.
+- Adresses : Photon (OpenStreetMap) limité à la Belgique pour un code postal belge, Géoplateforme IGN pour un code postal français.
 - Itinéraires : serveur OSRM public de démonstration. Pour un usage pro quotidien, hébergez votre propre OSRM et indiquez son adresse dans Réglages.
 - Carte 3D : MapLibre et OpenFreeMap.
 - Lecture des photos : Tesseract.js, sur le téléphone. Vos photos restent dans l'iPhone.

@@ -137,9 +137,12 @@
       </div>
       <div class="field">
         <span class="label">Recherche d'adresses</span>
+        <p class="hint">Automatique : l'app reconnaît la Belgique (code postal à 4 chiffres) et la France (5 chiffres).</p>
         <div class="seg" role="radiogroup" aria-label="Recherche d'adresses">
-          <label><input type="radio" name="region" value="fr" checked> France (Base Adresse Nationale)</label>
-          <label><input type="radio" name="region" value="world"> International</label>
+          <label><input type="radio" name="region" value="auto" checked> Automatique</label>
+          <label><input type="radio" name="region" value="be"> Belgique</label>
+          <label><input type="radio" name="region" value="fr"> France</label>
+          <label><input type="radio" name="region" value="world"> Autre pays</label>
         </div>
       </div>
       <div class="field">
@@ -147,7 +150,7 @@
         <input id="setOsrm" type="url" value="https://router.project-osrm.org">
         <p class="hint">Le serveur public gratuit suffit pour démarrer. Sans réponse du serveur, l'app estime les temps à vol d'oiseau.</p>
       </div>
-      <button class="btn ghost" id="loadDemo" type="button">Charger une tournée d'exemple (Lyon)</button>
+      <button class="btn ghost" id="loadDemo" type="button">Charger une tournée d'exemple (Charleroi)</button>
     </div>
   </section>
 </div>
@@ -159,7 +162,7 @@
       <h2 id="scanTitle">Scanner la tournée</h2>
       <button class="btn link" id="scanClose" type="button">Fermer</button>
     </div>
-    <p class="hint">Photographiez chaque page du manifeste, ou chaque étiquette. Tenez la feuille à plat, bien éclairée, et cadrez-la en entier. Vous pouvez ajouter des photos pendant la lecture.</p>
+    <p class="hint">Photographiez la liste de tournée de votre terminal (écran par écran) ou chaque étiquette. Cadrez l'étiquette de près, à plat, sans reflet. Vous pouvez ajouter des photos pendant la lecture.</p>
     <div class="scan-buttons">
       <label class="btn primary" for="camInput">Prendre une photo</label>
       <input class="vh" id="camInput" type="file" accept="image/*" capture="environment">
@@ -170,7 +173,7 @@
     <div id="pasteWrap" class="field" hidden>
       <label class="label" for="pasteText">Texte du manifeste</label>
       <textarea id="pasteText" rows="6" placeholder="Collez ici le texte copié…"></textarea>
-      <p class="hint">Sur iPhone : dans Appareil photo, visez le manifeste, touchez l'icône Texte en direct, puis Tout sélectionner et Copier.</p>
+      <p class="hint">Sur iPhone, Texte en direct lit mieux une étiquette froissée : dans Appareil photo, visez l'étiquette, touchez l'icône Texte en direct, puis Tout sélectionner et Copier.</p>
       <button class="btn primary" id="pasteGo" type="button">Lire le texte</button>
     </div>
     <ul class="scan-queue" id="scanQueue"></ul>
