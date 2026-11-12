@@ -108,6 +108,66 @@
   }
   $('toastUndo').addEventListener('click', () => { $('toast').hidden = true; if (undoAction) undoAction(); undoAction = null; });
 
+  // ---------- Animations (GSAP) : retours visuels aux gestes, rien de décoratif ----------
+  const anim = {
+    on: () => !!window.gsap && !window.matchMedia('(prefers-reduced-motion: reduce)').matches,
+    /** Ouverture : la pastille arrive, la coche se dessine, l'écran s'efface (moins d'une seconde). */
+    splash() {
+      if (!anim.on()) return;
+      const el = document.createElement('div');
+      el.className = 'splash';
+      el.setAttribute('aria-hidden', 'true');
+      el.innerHTML = `<div class="splash-in"><svg viewBox="0 0 256 256"><path class="pill" d="${'M68 44H188A28 28 0 0 1 216 72V156A28 28 0 0 1 188 184H148L128 214 108 184H68A28 28 0 0 1 40 156V72A28 28 0 0 1 68 44Z'}"/><path class="tick" d="M93 105 121 133 171 83"/></svg><div class="splash-name">Cap Colis</div></div>`;
+      document.body.appendChild(el);
+      const tick = el.querySelector('.tick');
+      const len = tick.getTotalLength();
+      gsap.set(tick, { strokeDasharray: len, strokeDashoffset: len });
+      gsap.timeline({ onComplete: () => el.remove() })
+        .from(el.querySelector('svg'), { scale: 0.6, autoAlpha: 0, duration: 0.35, ease: 'back.out(2)', transformOrigin: '50% 50%' })
+        .to(tick, { strokeDashoffset: 0, duration: 0.3, ease: 'power2.out' }, '-=0.05')
+        .from(el.querySelector('.splash-name'), { y: 10, autoAlpha: 0, duration: 0.25 }, '<')
+        .to(el, { autoAlpha: 0, duration: 0.3, ease: 'power1.in' }, '+=0.15');
+      // filet de sécurité : l'écran d'ouverture ne bloque jamais l'app
+      setTimeout(() => el.remove(), 2500);
+    },
+    /** Livré / Échec : grand tampon au centre, puis la fiche suivante glisse en place. */
+    stamp(ok) {
+      if (!anim.on()) return;
+      const el = document.createElement('div');
+      el.className = `stamp${ok ? '' : ' no'}`;
+      el.innerHTML = ok ? '<svg viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>' : '<svg viewBox="0 0 24 24"><path d="M7 7l10 10M17 7 7 17"/></svg>';
+      document.body.appendChild(el);
+      const path = el.querySelector('path');
+      const len = path.getTotalLength();
+      gsap.set(path, { strokeDasharray: len, strokeDashoffset: len });
+      gsap.timeline({ onComplete: () => el.remove() })
+        .from(el, { scale: 0.4, autoAlpha: 0, duration: 0.25, ease: 'back.out(2.2)' })
+        .to(path, { strokeDashoffset: 0, duration: 0.25, ease: 'power2.out' }, '-=0.05')
+        .to(el, { scale: 1.15, autoAlpha: 0, duration: 0.25, ease: 'power1.in' }, '+=0.25');
+      if (navigator.vibrate) navigator.vibrate(ok ? 40 : [60, 40, 60]);
+    },
+    nextCard() {
+      if (!anim.on()) return;
+      const c = document.querySelector('#currentCard .card');
+      if (c) gsap.from(c, { x: 48, autoAlpha: 0, duration: 0.35, delay: 0.2, ease: 'power2.out', clearProps: 'transform,visibility,opacity' });
+    },
+    /** Lignes de la tournée qui arrivent dans l'ordre de passage (après une optimisation). */
+    rows() {
+      if (!anim.on()) return;
+      const rows = [...document.querySelectorAll('#runList .row')].slice(0, 14); // seules les lignes visibles
+      if (rows.length) gsap.from(rows, { x: -18, autoAlpha: 0, duration: 0.3, stagger: 0.035, ease: 'power2.out', clearProps: 'transform,visibility,opacity' });
+    },
+    /** GPS : la nouvelle consigne glisse depuis le haut. */
+    maneuver() {
+      if (!anim.on()) return;
+      gsap.fromTo(['#navArrow', '#navTop .nav-txt'], { y: -14, autoAlpha: 0 }, { y: 0, autoAlpha: 1, duration: 0.3, stagger: 0.05, ease: 'power2.out', overwrite: true });
+    },
+    radar(el) {
+      if (!anim.on()) return;
+      gsap.fromTo(el, { scale: 0.6, autoAlpha: 0 }, { scale: 1, autoAlpha: 1, duration: 0.35, ease: 'back.out(2.2)', overwrite: true });
+    },
+  };
+
   // ---------- Géocodage ----------
   function biasParams() {
     const p = state.start || state.stops[state.stops.length - 1];
@@ -531,6 +591,7 @@
         ? `Tournée optimisée. Fin prévue à ${fmtClock(res.end)}.`
         : `Tournée optimisée avec des temps estimés (serveur d'itinéraire injoignable). Fin vers ${fmtClock(res.end)}.`);
       switchView('run');
+      anim.rows();
       setTimeout(() => focusCurrent(true), 700);
     } catch (e) {
       console.error(e);
@@ -643,7 +704,9 @@
     const s = stopById(id); if (!s) return;
     const prev = { status: s.status, failReason: s.failReason, doneAt: s.doneAt };
     s.status = status; s.failReason = reason || ''; s.doneAt = Date.now();
+    anim.stamp(status === 'done');
     renderAll();
+    anim.nextCard();
     const short = s.label.split(',')[0];
     toast(status === 'done' ? `Livré : ${short}` : `Échec (${reason}) : ${short}`, () => { Object.assign(s, prev); lastFocusId = null; renderAll(); focusCurrent(true); });
     focusCurrent();
@@ -1563,7 +1626,7 @@
     if (!navigator.geolocation) { toast('Ce téléphone ne donne pas sa position. Utilisez Waze.'); return; }
     stopNav(true);
     clearToast();
-    Object.assign(nav, { active: true, stop, route: null, seg: 0, off: 0, said: {}, arrived: false, fetching: false, follow: true, pos: null });
+    Object.assign(nav, { active: true, stop, route: null, seg: 0, off: 0, said: {}, arrived: false, fetching: false, follow: true, pos: null, lastK: -1, session: (nav.session || 0) + 1 });
     $('app').classList.add('navigating');
     document.body.classList.add('navigating');
     $('navTop').hidden = false; $('navBottom').hidden = false;
@@ -1600,9 +1663,13 @@
   }
   async function reroute(pos) {
     if (nav.fetching) return;
+    const session = nav.session, target = nav.stop;
     nav.fetching = true;
-    try { nav.route = await fetchNavRoute(pos, nav.stop); }
-    catch (e) { nav.route = straightRoute(pos, nav.stop); }
+    let rt;
+    try { rt = await fetchNavRoute(pos, target); }
+    catch (e) { rt = straightRoute(pos, target); }
+    if (session !== nav.session || !nav.active) return; // guidage arrêté ou relancé entre-temps
+    nav.route = rt;
     nav.fetching = false; nav.seg = 0; nav.off = 0; nav.said = {};
     navLayer(nav.route.coords.map((c) => [c.lon, c.lat]));
     if (state.settings.radars) {
@@ -1616,11 +1683,13 @@
   }
   async function onNavPos(p) {
     if (!nav.active) return;
+    const session = nav.session;
     const pos = { lat: p.coords.latitude, lon: p.coords.longitude };
     const speed = p.coords.speed || 0;
     nav.pos = pos;
-    if (!nav.route) { await reroute(pos); if (!nav.active) return; }
+    if (!nav.route) { await reroute(pos); if (!nav.active || session !== nav.session) return; }
     const rt = nav.route;
+    if (!rt) return;
     const toStop = dist(pos, nav.stop);
     if (toStop < 35) { navArrive(); return; }
     let along, seg;
@@ -1628,7 +1697,7 @@
     else {
       const sn = snap(pos, rt);
       along = sn.along; seg = sn.seg; nav.seg = seg;
-      if (sn.dist > 45) { nav.off++; if (nav.off >= 2) { speak('Recalcul de l\'itinéraire'); await reroute(pos); return onNavPos(p); } }
+      if (sn.dist > 45) { nav.off++; if (nav.off >= 2) { speak('Recalcul de l\'itinéraire'); await reroute(pos); if (!nav.active || session !== nav.session) return; return onNavPos(p); } }
       else nav.off = 0;
     }
     // prochaine manœuvre devant soi
@@ -1638,6 +1707,7 @@
     const toMan = Math.max(0, (rt.cum[st.idx] ?? rt.total) - along);
     const text = rt.straight ? `Dirigez-vous vers l'arrêt (${fmtNavDist(toStop)} à vol d'oiseau)` : instruction(st);
     $('navArrow').innerHTML = rt.straight ? arrowSVG({ maneuver: { modifier: 'straight' } }) : arrowSVG(st);
+    if (nav.lastK !== k) { nav.lastK = k; anim.maneuver(); }
     $('navDist').textContent = fmtNavDist(toMan);
     $('navInstr').textContent = text.replace(/ sur .*$/, '');
     $('navStreet').textContent = st.name || '';
@@ -1839,7 +1909,7 @@
     const sp = $('navSpeed');
     sp.classList.toggle('over', !!(ahead && ahead.max && speedKmh > ahead.max + 2));
     if (!ahead) { box.hidden = true; return; }
-    box.hidden = false;
+    if (box.hidden) { box.hidden = false; anim.radar(box); }
     box.innerHTML = `${ahead.max ? `<span class="lim">${ahead.max}</span>` : CAM_SVG}<span>Radar à ${fmtNavDist(ahead.d)}</span>`;
     const k = `radar${ahead.id}`;
     if (ahead.d < 500 && !nav.said[k]) {
@@ -1972,6 +2042,7 @@
   document.addEventListener('visibilitychange', () => { if (!document.hidden && state.route) { renderTop(); renderRun(); } });
 
   // ---------- Démarrage ----------
+  anim.splash();
   setSheet(sheetFrac);
   initMap();
   renderSettings();

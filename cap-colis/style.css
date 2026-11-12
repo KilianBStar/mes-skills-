@@ -444,3 +444,14 @@ body.navigating .toast { top: calc(env(safe-area-inset-top, 0px) + 150px); }
 .nav-speed.over { background: #C62828; color: #fff; border-color: #C62828; }
 .radar-mk { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: #C62828; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0, 0, 0, .4); color: #fff; font: 700 11px/1 var(--font-body); }
 .radar-mk svg { width: 18px; height: 18px; stroke: #fff; }
+
+/* ---------- Animations (GSAP) ---------- */
+.splash { position: fixed; inset: 0; z-index: 3000; display: grid; place-items: center; background: #1E62D6; }
+.splash-in { display: flex; flex-direction: column; align-items: center; gap: 18px; }
+.splash svg { width: 120px; height: 120px; overflow: visible; }
+.splash .pill { fill: #fff; stroke: none; }
+.splash .tick { fill: none; stroke: #1E62D6; stroke-width: 26; stroke-linecap: butt; stroke-linejoin: miter; }
+.splash-name { color: #fff; font: 500 2rem/1 var(--font-display); }
+.stamp { position: fixed; z-index: 2500; left: 50%; top: 42%; width: 140px; height: 140px; margin: -70px 0 0 -70px; border-radius: 50%; display: grid; place-items: center; pointer-events: none; background: var(--ok); box-shadow: 0 12px 40px rgba(0, 0, 0, .35); }
+.stamp.no { background: var(--bad); }
+.stamp svg { width: 78px; height: 78px; stroke: #fff; stroke-width: 3.2; fill: none; }

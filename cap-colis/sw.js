@@ -1,12 +1,13 @@
 // Service worker : garde l'application en cache pour l'ouvrir sans réseau.
 // Les adresses, itinéraires et fonds de carte passent toujours par le réseau.
-const CACHE = 'cap-colis-v3';
+const CACHE = 'cap-colis-v4';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'optimizer.js', 'scan.js', 'manifest.webmanifest',
   'icon.svg', 'favicon-32.png', 'icon-180.png', 'icon-192.png', 'icon-512.png',
+  'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js',
   'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js',
   'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css'];
 // Bibliothèques gardées après leur premier usage (lecture des photos hors ligne ensuite).
-const LIB_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net'];
+const LIB_HOSTS = ['unpkg.com', 'cdn.jsdelivr.net', 'cdnjs.cloudflare.com'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
