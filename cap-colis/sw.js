@@ -1,6 +1,6 @@
 // Service worker : garde l'application en cache pour l'ouvrir sans réseau.
 // Les adresses, itinéraires et fonds de carte passent toujours par le réseau.
-const CACHE = 'cap-colis-v9';
+const CACHE = 'cap-colis-v10';
 const SHELL = ['./', 'index.html', 'style.css', 'app.js', 'optimizer.js', 'scan.js', 'postcodes-be.js', 'manifest.webmanifest',
   'icon.svg', 'favicon-32.png', 'icon-180.png', 'icon-192.png', 'icon-512.png',
   'https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js',

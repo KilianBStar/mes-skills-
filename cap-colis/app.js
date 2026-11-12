@@ -7,7 +7,7 @@
   const SETTINGS_VERSION = 7;
   const DEFAULT_SETTINGS = {
     v: SETTINGS_VERSION, startNow: true, startTime: '08:00', service: 1, endMode: 'start', navApp: 'cap',
-    autoNav: true, radars: true, satellite: false, region: 'be', startMode: 'gps', osrm: 'https://router.project-osrm.org', map3d: false, poiKey: '',
+    autoNav: true, radars: true, satellite: false, region: 'be', startMode: 'gps', osrm: 'https://router.project-osrm.org', map3d: false, poiKey: '', gKey: '',
   };
   const MAP_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
   const MAP_STYLE_DARK = 'https://tiles.openfreemap.org/styles/dark';
@@ -255,10 +255,60 @@
     return list.filter((r) => { const k = r.label.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; })
       .map((r, i) => {
         const hasNum = num && new RegExp(`\\b${num}[a-z]?\\b`, 'i').test(r.label.split(',')[0]);
-        const km = Optimizer.haversine(me, r) / 1000;
+        const km = r.lat == null ? 0 : Optimizer.haversine(me, r) / 1000;
         return { r, score: i * 1 + (hasNum ? -6 : num ? 3 : 0) + Math.min(km, 60) * 0.08 };
       })
       .sort((a, b) => a.score - b.score).map((x) => x.r);
+  }
+  /**
+   * Google Maps (Places API) : tous les lieux de Google, y compris ceux ajoutés par les utilisateurs
+   * (parcs, salles de sport, notaires…). Suggestions gratuites ; la position est demandée au choix.
+   */
+  let gSession = '', gKeyWarned = false;
+  const gNewSession = () => { gSession = (crypto.randomUUID ? crypto.randomUUID() : uid() + uid()); };
+  async function gFetch(url, body, mask) {
+    const ctl = new AbortController();
+    const t = setTimeout(() => ctl.abort(), 8000);
+    try {
+      const r = await fetch(url, {
+        method: body ? 'POST' : 'GET', signal: ctl.signal,
+        headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': state.settings.gKey.trim(), ...(mask ? { 'X-Goog-FieldMask': mask } : {}) },
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    } finally { clearTimeout(t); }
+  }
+  async function google(q, limit) {
+    if (!(state.settings.gKey || '').trim()) return [];
+    if (!gSession) gNewSession();
+    const p = biasPoint();
+    try {
+      const r = await gFetch('https://places.googleapis.com/v1/places:autocomplete', {
+        input: q, languageCode: 'fr', includedRegionCodes: ['be'], sessionToken: gSession,
+        locationBias: { circle: { center: { latitude: p.lat, longitude: p.lon }, radius: 50000 } },
+      });
+      return (r.suggestions || []).filter((x) => x.placePrediction).slice(0, limit).map((x) => {
+        const pp = x.placePrediction, sf = pp.structuredFormat || {};
+        const main = sf.mainText ? sf.mainText.text : pp.text.text;
+        const sec = sf.secondaryText ? sf.secondaryText.text.replace(/,?\s*Belgi(que|um|ë)$/i, '') : '';
+        return { label: [main, sec].filter(Boolean).join(', '), placeId: pp.placeId, lat: null, lon: null, type: 'housenumber' };
+      });
+    } catch (e) {
+      if (/HTTP 40[03]/.test(String(e)) && !gKeyWarned) { gKeyWarned = true; toast('Clé Google refusée : vérifiez-la dans Réglages.'); }
+      return [];
+    }
+  }
+  /** Position d'un lieu Google choisi dans la liste (clôt la session de recherche). */
+  async function resolvePlace(it) {
+    if (!it || !it.placeId || it.lat != null) return it;
+    const r = await gFetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(it.placeId)}?languageCode=fr${gSession ? `&sessionToken=${gSession}` : ''}`, null, 'location,formattedAddress');
+    gSession = '';
+    if (!r.location) throw new Error('Lieu sans position');
+    const name = it.label.split(',')[0];
+    const addr = String(r.formattedAddress || '').replace(/,?\s*Belgi(que|um|ë)$/i, '');
+    const label = addr && !addr.startsWith(name) ? `${name}, ${addr}` : (addr || it.label);
+    return { ...it, label, lat: r.location.latitude, lon: r.location.longitude };
   }
   /** Un nom de magasin tapé : les commerces TomTom d'abord ; sinon les deux sources alternées, sans doublon à moins de 30 m. */
   function mergeResults(tt, ph) {
@@ -278,8 +328,9 @@
       } catch (e) { /* on passe à Photon */ }
     }
     if (country === 'BE') {
-      const [tt, ph] = await Promise.all([tomtom(q, Math.max(limit, 6)), photon(q, Math.max(limit, 8), BE_BBOX).catch((e) => (state.settings.poiKey ? [] : Promise.reject(e)))]);
+      const [gg, tt, ph] = await Promise.all([google(q, Math.max(limit, 5)), tomtom(q, Math.max(limit, 6)), photon(q, Math.max(limit, 8), BE_BBOX).catch((e) => (state.settings.poiKey || state.settings.gKey ? [] : Promise.reject(e)))]);
       let out = mergeResults(tt, ph);
+      if (gg.length) { const gl = new Set(gg.map((g) => g.label.split(',')[0].toLowerCase())); out = [...gg, ...out.filter((o) => !gl.has(o.label.split(',')[0].toLowerCase()))]; }
       // OCR approximatif : on réessaie sans le numéro de boîte ni la ponctuation
       if (!out.length) out = await photon(q.replace(/\/\S+/g, '').replace(/[,;]/g, ' '), Math.max(limit, 8), BE_BBOX);
       return rankResults(q, out).slice(0, limit);
@@ -317,7 +368,7 @@
         return `<li role="option" data-i="${i}" aria-selected="${i === active}" class="sug">${it.recent ? CLOCK : PIN}<span><b>${esc(street)}</b>${city ? `<small>${esc(city)}</small>` : ''}</span></li>`;
       }).join('');
       // nom de magasin, notaire, avocat… sans clé TomTom : OpenStreetMap n'en connaît qu'une partie
-      const tip = !searching && !state.settings.poiKey && !/\d/.test(input.value) ? '<li class="info">Magasin, notaire, avocat introuvable ? Ajoutez la clé TomTom gratuite dans Réglages.</li>' : '';
+      const tip = !searching && !state.settings.poiKey && !state.settings.gKey && !/\d/.test(input.value) ? '<li class="info">Magasin, notaire, avocat introuvable ? Ajoutez une clé Google Maps ou TomTom dans Réglages.</li>' : '';
       list.innerHTML = rows + (searching ? '<li class="info">Recherche…</li>' : items.length ? tip : '<li class="info">Aucune adresse trouvée en Belgique</li>' + tip);
       list.hidden = false;
     };
@@ -353,7 +404,13 @@
       pick(items[+li.dataset.i]);
     });
     input.addEventListener('blur', () => setTimeout(close, 150));
-    function pick(it) { close(); seq++; input.blur(); onPick(it); }
+    async function pick(it) {
+      close(); seq++; input.blur();
+      if (it.placeId && it.lat == null) {
+        try { it = await resolvePlace(it); } catch (e) { toast('Position introuvable pour ce lieu. Réessayez.'); return; }
+      }
+      onPick(it);
+    }
   }
 
   /** Adresses déjà connues (tournée en cours et anciennes tournées) qui contiennent tous les mots tapés. */
@@ -1115,6 +1172,7 @@
     $('setService').value = st.service;
     $('setOsrm').value = st.osrm;
     $('setPoiKey').value = st.poiKey || '';
+    $('setGKey').value = st.gKey || '';
     $('setAutoNav').checked = !!st.autoNav;
     $('setRadars').checked = st.radars !== false;
     for (const name of ['endMode', 'navApp', 'region']) {
@@ -1516,6 +1574,7 @@
   async function geocodeOne(address) {
     let res = [];
     try { res = await withRetry(() => geoSearch(address, 1)); } catch (e) { res = []; }
+    if (res[0] && res[0].placeId) { try { res = [await resolvePlace(res[0])]; } catch (e) { res = []; } }
     if (!res.length) {
       await sleep(1100); // Nominatim : une demande par seconde au plus
       try { res = await withRetry(() => nominatimBE(address.replace(/\/\S+/g, '')), 2); } catch (e) { res = []; }
@@ -2596,6 +2655,7 @@
   $('setStartNow').addEventListener('change', (e) => { state.settings.startNow = e.target.checked; renderSettings(); save(); });
   $('setStartTime').addEventListener('change', (e) => { state.settings.startTime = e.target.value || '08:00'; save(); });
   $('setService').addEventListener('change', (e) => { state.settings.service = Math.max(0, Number(e.target.value) || 0); recomputeEtas(); renderAll(); });
+  $('setGKey').addEventListener('change', (e) => { state.settings.gKey = e.target.value.trim(); gKeyWarned = false; save(); toast(state.settings.gKey ? 'Clé enregistrée : tous les lieux de Google Maps sont dans la recherche.' : 'Clé retirée.'); });
   $('setPoiKey').addEventListener('change', (e) => { state.settings.poiKey = e.target.value.trim(); poiKeyWarned = false; save(); toast(state.settings.poiKey ? 'Clé enregistrée : les magasins de Belgique sont dans la recherche.' : 'Clé retirée.'); });
   $('setOsrm').addEventListener('change', (e) => { state.settings.osrm = e.target.value.trim() || DEFAULT_SETTINGS.osrm; save(); });
   $('setAutoNav').addEventListener('change', (e) => { state.settings.autoNav = e.target.checked; save(); });
