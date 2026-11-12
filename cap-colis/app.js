@@ -316,7 +316,9 @@
         const { street, city } = splitLabel(it.label);
         return `<li role="option" data-i="${i}" aria-selected="${i === active}" class="sug">${it.recent ? CLOCK : PIN}<span><b>${esc(street)}</b>${city ? `<small>${esc(city)}</small>` : ''}</span></li>`;
       }).join('');
-      list.innerHTML = rows + (searching ? '<li class="info">Recherche…</li>' : items.length ? '' : '<li class="info">Aucune adresse trouvée en Belgique</li>');
+      // nom de magasin, notaire, avocat… sans clé TomTom : OpenStreetMap n'en connaît qu'une partie
+      const tip = !searching && !state.settings.poiKey && !/\d/.test(input.value) ? '<li class="info">Magasin, notaire, avocat introuvable ? Ajoutez la clé TomTom gratuite dans Réglages.</li>' : '';
+      list.innerHTML = rows + (searching ? '<li class="info">Recherche…</li>' : items.length ? tip : '<li class="info">Aucune adresse trouvée en Belgique</li>' + tip);
       list.hidden = false;
     };
     input.addEventListener('input', () => {
