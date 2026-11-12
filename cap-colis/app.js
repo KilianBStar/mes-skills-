@@ -1480,7 +1480,7 @@
   }
 
   $('scanOpen').addEventListener('click', openScan);
-  for (const id of ['camInput', 'libInput']) {
+  for (const id of ['camInput', 'libInput', 'oneInput']) {
     const onFiles = (e) => { if (e.target.files && e.target.files.length) { const f = Array.from(e.target.files); e.target.value = ''; if ($('scanDialog').hidden) openScan(); queueFiles(f); } };
     $(id).addEventListener('change', onFiles);
     $(id).addEventListener('input', onFiles);
@@ -1511,6 +1511,31 @@
   // iPhone : le sélecteur de photos s'ouvre depuis un vrai bouton, champ fichier hors de l'écran superposé
   $('camBtn').addEventListener('click', () => $('camInput').click());
   $('libBtn').addEventListener('click', () => $('libInput').click());
+  $('oneBtn').addEventListener('click', () => $('oneInput').click());
+  // Coller des captures (contourne le sélecteur de photos iOS qui reste bloqué dans les apps d'écran d'accueil)
+  const zone = $('pasteZone');
+  const zoneHTML = zone.innerHTML;
+  zone.addEventListener('paste', (e) => {
+    e.preventDefault();
+    const cd = e.clipboardData;
+    const files = [];
+    if (cd) {
+      for (const f of cd.files || []) if (/^image\//.test(f.type)) files.push(f);
+      if (!files.length) for (const it of cd.items || []) if (it.kind === 'file' && /^image\//.test(it.type)) { const f = it.getAsFile(); if (f) files.push(f); }
+    }
+    if (files.length) {
+      queueFiles(files.map((f, i) => (f.name && f.name !== 'image.png' ? f : new File([f], `capture-${Date.now()}-${i}.${(f.type.split('/')[1] || 'png')}`, { type: f.type }))));
+      toast(`${plural(files.length, 'capture')} collée${files.length > 1 ? 's' : ''}. Lecture en cours…`);
+    } else {
+      const text = cd ? cd.getData('text/plain') : '';
+      if (text) { const n = addFound(Scan.parsePasted(text), 'Texte collé'); renderFound(); toast(n ? `${plural(n, 'adresse')} trouvée${n > 1 ? 's' : ''}` : 'Aucune adresse dans ce texte.'); }
+      else toast('Rien à coller : copiez d\'abord les captures dans Photos (Partager → Copier).');
+    }
+    zone.innerHTML = zoneHTML;
+    zone.blur();
+  });
+  // on garde la zone propre (le clavier ne doit rien y écrire)
+  zone.addEventListener('beforeinput', (e) => { if (e.inputType !== 'insertFromPaste') e.preventDefault(); });
 
   // ---------- Panneau qu'on tire (3 hauteurs) ----------
   const SNAPS = [0.24, 0.52, 0.9];

@@ -299,8 +299,13 @@
     </div>
     <p class="hint">Sur le Honeywell, ouvrez la liste des adresses et photographiez un écran (environ 5 adresses), faites défiler, photographiez le suivant, et ainsi de suite jusqu'au bout. Les adresses présentes sur deux photos ne comptent qu'une fois.</p>
     <div class="scan-buttons">
+      <div class="paste-zone" id="pasteZone" contenteditable="true" role="textbox" aria-label="Zone où coller les captures" inputmode="none">
+        <b>Collez vos captures ici</b>
+        <span>Dans Photos : sélectionnez les captures → Partager → Copier.<br>Ici : appui long → Coller.</span>
+      </div>
       <button class="btn primary" id="camBtn" type="button">Prendre une photo</button>
       <button class="btn ghost" id="libBtn" type="button">Choisir dans Photos</button>
+      <button class="btn ghost" id="oneBtn" type="button">Une photo à la fois</button>
       <button class="btn ghost" id="pasteToggle" type="button">Coller du texte</button>
     </div>
     <div id="pasteWrap" class="field" hidden>
@@ -402,6 +407,7 @@
 
 <input class="vh" id="camInput" type="file" accept="image/*" capture="environment" aria-hidden="true" tabindex="-1">
 <input class="vh" id="libInput" type="file" accept="image/*" multiple aria-hidden="true" tabindex="-1">
+<input class="vh" id="oneInput" type="file" accept="image/*" aria-hidden="true" tabindex="-1">
 
 <div class="toast" id="toast" role="status" hidden><span id="toastText"></span><button class="btn link" id="toastUndo" type="button" hidden>Annuler</button></div>
 
