@@ -591,13 +591,16 @@
     return {
       id: uid(), seq: (state.seq = (state.seq || 0) + 1), label: p.label, lat: p.lat, lon: p.lon, name: extra.name || '', note: extra.note || '', packages: extra.packages || 1, group: 1,
       after: '', before: '', service: null, status: 'pending', check: !!extra.check,
+      ...(extra.ord != null ? { ord: extra.ord } : {}),
     };
   }
   function addStop(p, extra = {}) {
     const dup = state.stops.some((s) => Math.abs(s.lat - p.lat) < 1e-6 && Math.abs(s.lon - p.lon) < 1e-6);
     const s = newStop(p, extra);
-    state.stops.push(s);
-    const pos = state.route ? insertIntoRoute(s) : null;
+    // adresse scannée : rangée à sa place dans l'ordre des photos (1re photo, 1re ligne = 1er arrêt)
+    const after = s.ord != null ? state.stops.findIndex((x) => x.ord != null && x.ord > s.ord) : -1;
+    if (after >= 0) state.stops.splice(after, 0, s); else state.stops.push(s);
+    const pos = state.route ? (state.route.source === 'manual' && s.ord != null ? insertByPhotoOrder(s) : insertIntoRoute(s)) : null;
     if (!extra.silent) {
       renderAll();
       toast(dup ? 'Ajouté. Attention : cette adresse figure déjà dans la liste.' : pos ? `Arrêt ajouté en n° ${pos} de la tournée` : `Arrêt ajouté (${state.stops.length})`);
@@ -1316,7 +1319,7 @@
       known.add(k);
       const dup = existing.has(k);
       state.found.push({
-        id: uid(), address: r.address, name: r.name || '', note: r.note || '', packages: r.packages || 1, sure: !!r.sure, incomplete: !!r.incomplete,
+        id: uid(), ord: (state.foundSeq = (state.foundSeq || 0) + 1), address: r.address, name: r.name || '', note: r.note || '', packages: r.packages || 1, sure: !!r.sure, incomplete: !!r.incomplete,
         checked: !dup && !r.incomplete, source, error: dup ? 'Déjà dans la tournée' : '',
       });
       added++;
@@ -1367,6 +1370,7 @@
       else {
         $('scanResult').hidden = false;
         $('scanOptimize').hidden = true;
+        $('scanPhotoOrder').hidden = true;
         $('scanResultText').textContent = 'Aucune adresse lue sur ces photos. Reprenez-les plus près de l\'écran, sans reflet.';
       }
     }
@@ -1495,7 +1499,7 @@
         const g = await geocodeOne(f.address);
         if (!g) { f.error = 'Introuvable : corrigez l\'adresse puis touchez Ajouter'; missing++; continue; }
         const weak = (g.score != null && g.score < 0.5) || (g.type && g.type !== 'housenumber' && Scan.hasHouseNumber(f.address.split(',')[0]));
-        addStop(g, { name: f.name, note: f.note, packages: f.packages, check: weak || !f.sure, silent: true });
+        addStop(g, { name: f.name, note: f.note, packages: f.packages, check: weak || !f.sure, silent: true, ord: f.ord });
         f.added = true; f.error = ''; ok++;
         if (k % 5 === 4) { save(); renderFound(); } // on garde la progression si l'app se ferme
         await sleep(250);
@@ -1513,6 +1517,7 @@
       ? `${plural(ok, 'arrêt')} ajouté${ok > 1 ? 's' : ''}${missing ? `. ${missing} adresse${missing > 1 ? 's' : ''} à corriger ci-dessus (en rouge), puis touchez Ajouter.` : '.'}`
       : `Aucune adresse trouvée. Vérifiez la connexion, corrigez les adresses en rouge puis touchez Ajouter.`;
     $('scanOptimize').hidden = !ok;
+    $('scanPhotoOrder').hidden = !ok;
   }
 
   $('scanOpen').addEventListener('click', openScan);
@@ -1531,6 +1536,11 @@
   });
   $('scanAdd').addEventListener('click', addFoundToTour);
   $('scanClearFound').addEventListener('click', () => { state.found = []; save(); renderFound(); });
+  $('scanPhotoOrder').addEventListener('click', () => {
+    closeScan();
+    $('scanResult').hidden = true;
+    startInOrder();
+  });
   $('scanOptimize').addEventListener('click', () => {
     closeScan();
     $('scanResult').hidden = true;
@@ -2381,6 +2391,17 @@
     const beforeId = candidates[bestPos];
     if (beforeId) r.order.splice(r.order.indexOf(beforeId), 0, s.id);
     else r.order.push(s.id);
+    r.geometry = null;
+    return orderNumber(s.id);
+  }
+  /** Tournée dans l'ordre des photos : l'adresse scannée prend sa place parmi les arrêts qui restent. */
+  function insertByPhotoOrder(s) {
+    const r = state.route;
+    if (!r || r.order.includes(s.id)) return null;
+    let cands = r.order.filter((id) => { const x = stopById(id); return x && x.status === 'pending'; });
+    if (nav.active && nav.stop && cands[0] === nav.stop.id) cands = cands.slice(1);
+    const beforeId = cands.find((id) => { const x = stopById(id); return x.ord != null && x.ord > s.ord; });
+    if (beforeId) r.order.splice(r.order.indexOf(beforeId), 0, s.id); else r.order.push(s.id);
     r.geometry = null;
     return orderNumber(s.id);
   }
