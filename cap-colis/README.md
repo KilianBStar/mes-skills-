@@ -1,4 +1,6 @@
-# Cap Colis
+# Kilivre
+
+Nom : Kilivre, de « Kilian » et « livre ». Vidéo de présentation : `brand/kilivre-presentation.mp4`.
 
 Application de tournée pour livreur de colis, pensée pour l'iPhone (testée au format iPhone 17 Pro Max). Vous scannez le manifeste, elle calcule l'ordre de passage et l'heure de fin, puis Waze vous guide d'un arrêt à l'autre.
 
@@ -42,10 +44,10 @@ Vos données restent sur le téléphone, sans compte à créer.
 2. Ouvrez l'adresse dans **Safari** sur l'iPhone.
 3. Bouton Partager, puis **Sur l'écran d'accueil**.
 
-L'icône Cap Colis arrive sur l'écran d'accueil et s'ouvre en plein écran, sans barre Safari. L'app fonctionne ensuite hors ligne, sauf la recherche d'adresses, les itinéraires et le fond de carte.
+L'icône Kilivre arrive sur l'écran d'accueil et s'ouvre en plein écran, sans barre Safari. L'app fonctionne ensuite hors ligne, sauf la recherche d'adresses, les itinéraires et le fond de carte.
 
 ### Option 2 : l'app native (fichier .ipa)
-À chaque modification, GitHub Actions compile l'app iOS sur un Mac (workflow `Cap Colis iOS`) et publie `CapColis-non-signe.ipa` dans les artefacts du run.
+À chaque modification, GitHub Actions compile l'app iOS sur un Mac (workflow `Kilivre iOS`) et publie `CapColis-non-signe.ipa` dans les artefacts du run.
 
 Apple interdit d'installer une app non signée. Deux façons de la signer :
 - **Gratuit** : Sideloadly ou AltStore sur un ordinateur, avec votre identifiant Apple. Apple limite cette signature à 7 jours ; il faut la renouveler ensuite.

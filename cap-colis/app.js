@@ -1,4 +1,4 @@
-/* Cap Colis : logique de l'application (sans framework). */
+/* Kilivre : logique de l'application (sans framework). */
 (function () {
   'use strict';
 
@@ -117,7 +117,7 @@
       const el = document.createElement('div');
       el.className = 'splash';
       el.setAttribute('aria-hidden', 'true');
-      el.innerHTML = `<div class="splash-in"><svg viewBox="0 0 256 256"><path class="pill" d="${'M68 44H188A28 28 0 0 1 216 72V156A28 28 0 0 1 188 184H148L128 214 108 184H68A28 28 0 0 1 40 156V72A28 28 0 0 1 68 44Z'}"/><path class="tick" d="M93 105 121 133 171 83"/></svg><div class="splash-name">Cap Colis</div></div>`;
+      el.innerHTML = `<div class="splash-in"><svg viewBox="0 0 256 256"><path class="pill" d="${'M68 44H188A28 28 0 0 1 216 72V156A28 28 0 0 1 188 184H148L128 214 108 184H68A28 28 0 0 1 40 156V72A28 28 0 0 1 68 44Z'}"/><path class="tick" d="M93 105 121 133 171 83"/></svg><div class="splash-name">Kilivre</div></div>`;
       document.body.appendChild(el);
       const tick = el.querySelector('.tick');
       const len = tick.getTotalLength();
@@ -174,7 +174,9 @@
     return p ? `&lat=${p.lat}&lon=${p.lon}` : '';
   }
   function photonLabel(p) {
-    const street = [p.housenumber, p.street].filter(Boolean).join(' ');
+    // Belgique et Pays-Bas : le numéro suit la rue (« Rue de la Vallée 2 »)
+    const after = ['BE', 'NL', 'DE', 'LU'].includes(p.countrycode);
+    const street = (after ? [p.street, p.housenumber] : [p.housenumber, p.street]).filter(Boolean).join(' ');
     const first = p.name && p.name !== p.street ? p.name : street;
     const parts = [first, first === street ? '' : street, [p.postcode, p.city || p.district].filter(Boolean).join(' '), p.countrycode && !['FR', 'BE'].includes(p.countrycode) ? p.country : ''];
     return parts.filter(Boolean).join(', ');
@@ -681,7 +683,7 @@
       document.body.appendChild(a); a.click(); a.remove();
     } else {
       window.location.href = url; // ouvre l'application (Waze, Google Maps)
-      // Si l'app n'est pas installée, l'iPhone reste sur Cap Colis : on passe par le lien web.
+      // Si l'app n'est pas installée, l'iPhone reste sur Kilivre : on passe par le lien web.
       const web = state.settings.navApp === 'google'
         ? `https://www.google.com/maps/dir/?api=1&destination=${s.lat},${s.lon}&travelmode=driving`
         : `https://waze.com/ul?ll=${s.lat},${s.lon}&navigate=yes`;
@@ -2052,5 +2054,5 @@
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
-  window.CapColis = { get state() { return state; }, optimize, queueFiles, addStop };
+  window.CapColis = { get state() { return state; }, optimize, queueFiles, addStop, render: renderAll };
 })();

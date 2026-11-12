@@ -34,11 +34,12 @@
 
   const isStreetTok = (t) => {
     const w = norm(t).replace(/[^a-z\-]/g, '');
-    return STREET_SET.has(w) || (w.length > 5 && NL_SUFFIX.test(w));
+    // « Grand-Rue », « Petite-Rue » : le type de voie est collé par un tiret
+    return STREET_SET.has(w) || (w.length > 5 && NL_SUFFIX.test(w)) || (/^(grand|grande|petite?|haute?|basse?|vieille)-(rue|route|place|chaussee)$/.test(w));
   };
   function hasStreetWord(line) {
     const words = norm(line).replace(/[^a-z0-9\- ]/g, ' ').split(/\s+/).filter(Boolean);
-    return words.some((w, i) => (STREET_SET.has(w) && i < words.length - 1) || (w.length > 5 && NL_SUFFIX.test(w)));
+    return words.some((w, i) => (STREET_SET.has(w) && i < words.length - 1) || (w.length > 5 && NL_SUFFIX.test(w)) || isStreetTok(w));
   }
   function hasHouseNumber(s) {
     return LEAD_NUM.test(s) || TRAIL_NUM.test(s);

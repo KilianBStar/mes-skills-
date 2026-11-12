@@ -148,3 +148,9 @@ test('bruit OCR après le numéro (format belge) coupé', () => {
   const c = S.extractAddresses('12 rue Mercière 69002 LYON');
   assert.strictEqual(c[0].address, '12 rue Mercière, 69002 LYON', 'format français intact');
 });
+
+test('rue en un mot avec tiret (Grand-Rue)', () => {
+  const r = S.extractAddresses('HUGO MAES\nGRAND-RUE 54\n6200 CHATELET\nNombre de colis : 1');
+  assert.strictEqual(r[0].address, 'GRAND-RUE 54, 6200 CHATELET');
+  assert.ok(r[0].sure && !r[0].incomplete);
+});

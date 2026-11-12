@@ -1,6 +1,6 @@
 {
   "appId": "fr.capcolis.app",
-  "appName": "Cap Colis",
+  "appName": "Kilivre",
   "webDir": "www",
   "ios": {
     "contentInset": "never",

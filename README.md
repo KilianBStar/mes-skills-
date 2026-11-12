@@ -7,4 +7,4 @@ Licence MIT : voir LICENSE-ECC.
 
 ## Applications
 
-- [Cap Colis](cap-colis/) : tournée de livreur de colis pour iPhone. Scan du manifeste, optimisation, carte 3D, Waze.
+- [Kilivre](cap-colis/) : tournée de livreur de colis pour iPhone. Scan du manifeste, optimisation, carte 3D, Waze.
