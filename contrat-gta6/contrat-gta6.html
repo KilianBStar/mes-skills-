@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Contrat Officiel GTA VI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Inter:wght@400;600;800&family=Permanent+Marker&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0d0718; --paper:#fffaf3; --ink:#1b1225; --muted:#6b5d78;
+    --pink:#ff3d8b; --orange:#ff9a3c; --purple:#7b2ff7; --teal:#16c4c4;
+    --red:#e5243b; --gold:#ffcc33;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:Inter,system-ui,sans-serif;padding:32px 16px;
+    background-image:radial-gradient(circle at 20% 0%, #3a1250 0%, transparent 50%),radial-gradient(circle at 90% 100%, #4a1a2e 0%, transparent 50%)}
+  .sheet{max-width:820px;margin:0 auto;background:var(--paper);border-radius:6px;overflow:hidden;
+    box-shadow:0 30px 80px rgba(0,0,0,.6)}
+
+  /* ---------- HEADER / LOGO ---------- */
+  .hero{position:relative;padding:40px 24px 34px;text-align:center;overflow:hidden;
+    background:linear-gradient(180deg,#2a0f4a 0%,#7b2ff7 35%,#ff3d8b 68%,#ff9a3c 100%)}
+  .sun{position:absolute;left:50%;bottom:-120px;width:340px;height:340px;transform:translateX(-50%);border-radius:50%;
+    background:repeating-linear-gradient(180deg,#ffd45c 0 18px,transparent 18px 26px);opacity:.45}
+  .palm{position:absolute;bottom:0;font-size:90px;opacity:.85;filter:brightness(0)}
+  .palm.l{left:10px}.palm.r{right:10px;transform:scaleX(-1)}
+  .logo{position:relative;display:inline-block}
+  .logo .gta{font-family:Anton,Impact,sans-serif;color:#fff;letter-spacing:.32em;font-size:15px;margin-bottom:-4px;
+    text-shadow:0 2px 0 rgba(0,0,0,.35)}
+  .logo .vi{font-family:Anton,Impact,sans-serif;font-size:150px;line-height:1;letter-spacing:-.02em;
+    background:linear-gradient(160deg,#ffe36e 0%,#ff9a3c 30%,#ff3d8b 60%,#a83cff 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    -webkit-text-stroke:3px #fff;filter:drop-shadow(0 6px 0 rgba(0,0,0,.35))}
+  .logo .tag{display:inline-block;margin-top:6px;font-family:Anton,sans-serif;background:#fff;color:var(--pink);
+    padding:4px 14px;letter-spacing:.18em;font-size:14px;transform:rotate(-2deg)}
+  .title{position:relative;margin-top:22px;font-family:Anton,sans-serif;color:#fff;font-size:32px;letter-spacing:.04em;
+    text-transform:uppercase;text-shadow:0 3px 0 rgba(0,0,0,.35)}
+  .subtitle{position:relative;color:#fff;opacity:.95;font-weight:600;margin-top:6px;font-size:15px}
+
+  /* ---------- BODY ---------- */
+  .body{padding:34px 40px 40px}
+  .parties{display:grid;grid-template-columns:1fr auto 1fr;gap:14px;align-items:center;margin-bottom:26px}
+  .party{border:2px dashed var(--purple);border-radius:10px;padding:14px;text-align:center}
+  .party small{display:block;font-weight:800;color:var(--purple);letter-spacing:.12em;font-size:11px;text-transform:uppercase}
+  .party b{display:block;font-size:16px;margin:6px 0 4px}
+  .party span{font-size:12.5px;color:var(--muted)}
+  .vs{font-family:Anton,sans-serif;font-size:28px;color:var(--pink)}
+
+  .preamble{background:#f4ecff;border-left:5px solid var(--purple);padding:14px 18px;border-radius:0 8px 8px 0;
+    font-size:14.5px;line-height:1.6;margin-bottom:28px}
+
+  .article{margin-bottom:22px;position:relative}
+  .article h3{font-family:Anton,sans-serif;font-weight:400;font-size:21px;letter-spacing:.02em;text-transform:uppercase;
+    display:flex;gap:12px;align-items:baseline;margin-bottom:8px}
+  .article h3 .num{color:#fff;background:linear-gradient(135deg,var(--pink),var(--orange));padding:2px 10px;border-radius:4px;font-size:16px}
+  .article:first-of-type{padding-right:130px}
+  .article p,.article li{font-size:14.5px;line-height:1.6}
+  .article ul{margin:6px 0 0 20px}
+  .article li{margin-bottom:4px}
+  .note{font-size:12.5px;color:var(--muted);font-style:italic;margin-top:6px}
+
+  .wanted{margin:30px 0;border:3px solid var(--ink);border-radius:10px;overflow:hidden}
+  .wanted .head{background:var(--ink);color:#fff;font-family:Anton,sans-serif;letter-spacing:.12em;padding:10px 16px;font-size:18px;
+    display:flex;justify-content:space-between;align-items:center}
+  .wanted .head .stars{color:var(--gold);letter-spacing:2px}
+  .wanted table{width:100%;border-collapse:collapse;font-size:14px}
+  .wanted td{padding:10px 16px;border-top:1px solid #e6dcd0;vertical-align:top}
+  .wanted td:first-child{white-space:nowrap;color:var(--gold);font-size:18px;text-shadow:0 0 1px #000;width:120px}
+  .wanted td .off{color:#d8cfc4;text-shadow:none}
+  .wanted td:nth-child(2){font-weight:600;width:160px}
+
+  .busted{text-align:center;margin:34px 0 10px}
+  .busted span{display:inline-block;font-family:Anton,sans-serif;font-size:46px;color:var(--red);border:5px solid var(--red);
+    padding:2px 22px;transform:rotate(-4deg);letter-spacing:.06em;opacity:.9}
+  .busted p{font-size:13px;color:var(--muted);margin-top:10px}
+
+  .sign{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:34px}
+  .sign div{text-align:center}
+  .sign .line{border-bottom:2px solid var(--ink);height:56px;margin-bottom:8px;font-family:"Permanent Marker",cursive;
+    font-size:24px;color:var(--purple);display:flex;align-items:flex-end;justify-content:center}
+  .sign small{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+  .place{margin-top:26px;text-align:center;font-size:14px}
+  .place b{font-family:"Permanent Marker",cursive;font-weight:400;font-size:18px;color:var(--pink)}
+  .stamp{position:absolute;right:0;top:-4px;width:118px;height:118px;border-radius:50%;border:4px double var(--pink);
+    color:var(--pink);display:flex;align-items:center;justify-content:center;text-align:center;font-family:Anton,sans-serif;
+    font-size:13px;line-height:1.15;transform:rotate(12deg);opacity:.75;letter-spacing:.05em}
+  .footer{background:var(--ink);color:#bfb3cc;text-align:center;font-size:11px;padding:12px;line-height:1.5}
+
+  @media (max-width:600px){
+    .body{padding:24px 18px}
+    .logo .vi{font-size:110px}
+    .title{font-size:24px}
+    .parties{grid-template-columns:1fr}
+    .vs{text-align:center}
+    .sign{grid-template-columns:1fr}
+    .stamp{display:none}
+    .article:first-of-type{padding-right:0}
+    .wanted td:nth-child(2){width:auto}
+    .palm{font-size:60px}
+  }
+  @media print{
+    body{background:#fff;padding:0}
+    .sheet{box-shadow:none;border-radius:0;max-width:none}
+    *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+    .article,.wanted{break-inside:avoid}
+  }
+  @page{size:A4;margin:0}
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="hero">
+    <div class="sun"></div>
+    <div class="palm l">🌴</div><div class="palm r">🌴</div>
+    <div class="logo">
+      <div class="gta">GRAND THEFT AUTO</div>
+      <div class="vi">VI</div>
+      <div class="tag">ÉDITION COUPLE</div>
+    </div>
+    <h1 class="title">Contrat officiel de bonne conduite</h1>
+    <p class="subtitle">Entre le monde réel 💖 et l'État de Leonida 🎮</p>
+  </header>
+
+  <main class="body">
+
+    <section class="parties">
+      <div class="party">
+        <small>Partie n°1 — La Reine</small>
+        <b>La Copine</b>
+        <span>Personne réelle, en 3D, sans bug, sans chargement</span>
+      </div>
+      <div class="vs">VS</div>
+      <div class="party">
+        <small>Partie n°2 — Le Joueur</small>
+        <b>Le Copain</b>
+        <span>Ci-après dénommé « le Gamer en sursis »</span>
+      </div>
+    </section>
+
+    <p class="preamble">
+      <b>Préambule :</b> Considérant la sortie imminente de GTA VI, et considérant le risque élevé que le Copain
+      disparaisse pendant plusieurs jours dans les rues de Vice City, les deux parties conviennent d'un commun accord
+      (surtout celui de la Copine) des articles suivants. Toute ressemblance avec un ultimatum est purement voulue.
+    </p>
+
+    <div class="article">
+      <div class="stamp">CERTIFIÉ<br>PAR LA<br>COPINE<br>★★★★★</div>
+      <h3><span class="num">Art. 1</span> Délai de réponse raisonnable</h3>
+      <p>Le Copain s'engage à répondre aux messages de sa Copine <b>dans un délai raisonnable</b>, c'est-à-dire
+      <b>moins de 2 heures</b>, et pas « après la mission ».</p>
+      <ul>
+        <li>Un « ok », « mdr » ou « 👍 » envoyé en pleine course-poursuite <b>ne compte pas</b> comme une réponse.</li>
+        <li>Les vocaux avec bruits de sirènes en fond seront considérés comme une <b>circonstance aggravante</b>.</li>
+        <li>Mettre le jeu en pause pour répondre est autorisé, encouragé, et même exigé.</li>
+      </ul>
+    </div>
+
+    <div class="article">
+      <h3><span class="num">Art. 2</span> Clause de réalité</h3>
+      <p>Le Copain reconnaît solennellement que <b>Lucia est fictive</b>. Elle est faite de pixels, de polygones et
+      de code. Sa Copine, elle, est <b>réelle</b>, sent bon, fait des câlins et n'a <b>pas besoin d'une mise à jour</b>.</p>
+      <p class="note">Le Copain s'engage donc à ne jamais oublier sa Copine, même pendant un braquage de banque à 4 millions de dollars.</p>
+    </div>
+
+    <div class="article">
+      <h3><span class="num">Art. 3</span> Interdiction formelle de tomber amoureux de Lucia</h3>
+      <p>Il est <b>strictement interdit</b> au Copain de tomber amoureux de Lucia. Sont notamment prohibés :</p>
+      <ul>
+        <li>Dire « elle est trop stylée Lucia » plus d'une fois par semaine ;</li>
+        <li>Mettre Lucia en fond d'écran (téléphone, PC, cœur) ;</li>
+        <li>Prendre la défense de Lucia lors d'un désaccord avec la Copine ;</li>
+        <li>Regarder la cinématique de Lucia en boucle « juste pour les graphismes ».</li>
+      </ul>
+      <p class="note">Jason est également surveillé. On ne sait jamais.</p>
+    </div>
+
+    <div class="article">
+      <h3><span class="num">Art. 4</span> Absence injustifiable</h3>
+      <p>Une absence de <b>2 heures (ou plus)</b> pour cause de GTA <b>n'est pas justifiable</b>.
+      Les excuses suivantes sont <b>irrecevables</b> devant le tribunal de la Copine :</p>
+      <ul>
+        <li>« J'étais en mission, je pouvais pas mettre pause » ❌</li>
+        <li>« J'avais 5 étoiles, c'était une question de vie ou de mort » ❌</li>
+        <li>« J'ai pas vu l'heure passer » ❌</li>
+        <li>« Mon téléphone était en silencieux » ❌ (on sait que c'est faux)</li>
+      </ul>
+    </div>
+
+    <div class="article">
+      <h3><span class="num">Art. 5</span> Sanctions & procédure de pardon</h3>
+      <p>Si le Copain <b>ne répond pas sous 2 heures</b>, il sera immédiatement :</p>
+      <ul>
+        <li><b>Puni de GTA</b> (manette confisquée, durée fixée par la Copine, sans possibilité d'appel) ;</li>
+        <li>Obligé de <b>se faire pardonner</b> en versant les dommages et intérêts suivants :
+          <b>attention</b> 💬, <b>câlins</b> 🤗, <b>bisous</b> 😘 et une <b>sortie</b> 🍿 au choix de la Copine.</li>
+      </ul>
+    </div>
+
+    <div class="wanted">
+      <div class="head"><span>BARÈME DES INFRACTIONS</span><span class="stars">★★★★★</span></div>
+      <table>
+        <tr><td>★<span class="off">★</span><span class="off">★</span><span class="off">★</span><span class="off">★</span></td><td>30 min sans réponse</td><td>Avertissement + 3 bisous de réparation</td></tr>
+        <tr><td>★★<span class="off">★</span><span class="off">★</span><span class="off">★</span></td><td>1 h sans réponse</td><td>10 min de câlin obligatoire, téléphone dans la main</td></tr>
+        <tr><td>★★★<span class="off">★</span><span class="off">★</span></td><td>2 h sans réponse</td><td>Manette confisquée 24 h + soirée film choisi par la Copine</td></tr>
+        <tr><td>★★★★<span class="off">★</span></td><td>A parlé de Lucia avec des étoiles dans les yeux</td><td>Resto payé par le Copain + compliments sincères (minimum 5)</td></tr>
+        <tr><td>★★★★★</td><td>A oublié la Copine pour GTA</td><td>Bannissement de Leonida 1 semaine + sortie complète + petit-déj au lit</td></tr>
+      </table>
+    </div>
+
+    <div class="article">
+      <h3><span class="num">Art. 6</span> Dispositions finales</h3>
+      <p>Le présent contrat est valable <b>jusqu'à la sortie de GTA VII</b>, renouvelable automatiquement.
+      La Copine se réserve le droit d'ajouter des articles à tout moment, sans préavis, selon son humeur.
+      En cas de litige, <b>la Copine a toujours raison</b> (voir article 1 du règlement intérieur du couple).</p>
+    </div>
+
+    <div class="busted">
+      <span>LU & APPROUVÉ</span>
+      <p>En cas de non-respect : <b>WASTED</b> 💀 — Le Copain respawnera sur le canapé.</p>
+    </div>
+
+    <section class="sign">
+      <div><div class="line">💖</div><small>Signature de la Copine</small></div>
+      <div><div class="line">🎮</div><small>Signature du Copain (sous surveillance)</small></div>
+    </section>
+
+    <p class="place">Fait à <b>Vice City</b>, le ____ / ____ / ________, en deux exemplaires dont un à afficher à côté de la console.</p>
+  </main>
+
+  <footer class="footer">
+    Contrat humoristique non officiel, fait avec amour par des fans. Aucune valeur juridique… sauf aux yeux de la Copine.
+  </footer>
+</div>
+</body>
+</html>
